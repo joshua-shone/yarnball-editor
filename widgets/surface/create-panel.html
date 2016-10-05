@@ -1,0 +1,109 @@
+<link rel="import" href="../../../polymer/polymer.html">
+
+<link rel="import" href="../../../paper-button/paper-button.html">
+
+<link rel="import" href="panel.html">
+
+<link rel="import" href="../node/node-factory.html">
+<link rel="import" href="../set/set-factory.html">
+<link rel="import" href="../list/list-factory.html">
+
+<link rel="import" href="../../../iron-icons/iron-icons.html">
+
+<dom-module id="yb-surface-create-panel">
+  <style include="surface-panel-style"></style>
+  <template>
+    <paper-button class="edge-button panel-handle" on-tap="handleClicked">
+      <iron-icon icon="icons:add" item-icon></iron-icon>
+    </paper-button>
+    <div>
+      <yb-node-factory> </yb-node-factory>
+      <yb-set-factory>  </yb-set-factory>
+      <yb-list-factory> </yb-list-factory>
+    </div>
+  </template>
+  <style>
+    :host {
+      right: 0;
+      bottom: 5px;
+      width: 250px;
+    }
+    :host .panel-handle {
+      left: -50px;
+      border-top-right-radius:    0;
+      border-bottom-right-radius: 0;
+    }
+    :host.hidden {
+      right: -251px;
+    }
+  </style>
+  <script>
+    (function() {
+      Polymer({
+        is: 'yb-surface-create-panel',
+        ready: function() {
+          this.classList.add('hidden');
+        },
+        handleClicked: function() {
+          this.toggle();
+        },
+        toggle: function() {
+          this.classList.toggle('hidden');
+        },
+      });
+    })();
+  </script>
+</dom-module>
+
+<script>
+  window.Yarnball = window.Yarnball || {};
+  
+  window.Yarnball._SurfaceCreatePanel = {
+    ready: function() {
+      var createPanel = document.createElement('yb-surface-create-panel');
+      createPanel.surface = this;
+      this.createPanel = createPanel;
+      this.appendChild(createPanel);
+      
+      this.addOwnKeyBinding('ctrl+g', 'handleKey_CtrlG');
+      this.addOwnKeyBinding('f2',     'handleKey_F2');
+    },
+    handleKey_CtrlG: function(event) {
+      event.preventDefault();
+      this.createPanel.toggle();
+      return false;
+    },
+    handleKey_F2: function(event) {
+      event.preventDefault();
+      this.createPanel.toggle();
+      return false;
+    },
+    listeners: {
+      dragStart: 'handleDragStart',
+    },
+    handleDragStart: function(event) {
+      var self = this;
+      if (self.createPanel.contains(event.target)) {
+        var factoryWidget = event.target;
+        function backgroundMouseenter(event) {
+          self.background.removeEventListener('mouseenter', backgroundMouseenter);
+          var newWidget = factoryWidget.create();
+          var mouseEventTranslated = self.translateMouseEvent(event);
+          var widgetPosition = {
+            x: mouseEventTranslated.positionView.x - 28,
+            y: mouseEventTranslated.positionView.y - 28,
+          }
+          self.beginOperation(self.NewWidgetOperation, newWidget, widgetPosition);
+          self.selectWidgets([newWidget]);
+          self.beginOperation(self.DragOperation, event);
+        }
+        self.background.addEventListener('mouseenter', backgroundMouseenter);
+        function windowMouseup(event) {
+          self.background.removeEventListener('mouseenter', backgroundMouseenter);
+          window.removeEventListener('mouseup', windowMouseup);
+        }
+        window.addEventListener('mouseup', windowMouseup);
+      }
+    },
+  }
+</script>

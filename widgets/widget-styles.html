@@ -1,0 +1,48 @@
+<dom-module id="widget-styles">
+<template>
+<style>
+:host.widget-handle,
+:host > .widget-handle {
+  pointer-events: all;
+  background-color: #fff;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer; }
+
+:host.widget-handle,
+:host > .widget-handle,
+:host > .widget-body {
+  box-shadow: none;
+  transition: box-shadow 0.12s ease-in-out; }
+
+:host.widget-handle:hover,
+:host > .widget-handle:hover,
+:host.highlighted.widget-handle,
+:host.highlighted > .widget-handle {
+  background-color: #E2F4FF; }
+
+:host .widget-body {
+  pointer-events: all;
+  border: 1px solid #ddd;
+  background-color: #fff; }
+
+:host.selected.widget-handle,
+:host.selected > .widget-handle {
+  background-color: #FFCB6C; }
+
+:host.dragging {
+  pointer-events: none;
+  z-index: 3;
+  transition: opacity 0.5s; }
+
+:host.dragging.widget-handle,
+:host.dragging > .widget-handle,
+:host.dragging > .widget-body {
+  box-shadow: 1px 1px 20px rgba(0, 0, 0, 0.2); }
+
+:host.self-drop-ready {
+  opacity: 0.6; }
+
+</style>
+</template>
+</dom-module>

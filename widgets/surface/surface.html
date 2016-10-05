@@ -1,0 +1,1419 @@
+<link rel="import" href="../../../polymer/polymer.html">
+
+<link rel="import" href="empty-indicator.html">
+<link rel="import" href="context-menus.html">
+<link rel="import" href="search-panel.html">
+
+<link rel="import" href="../../../paper-button/paper-button.html">
+
+<link rel="import" href="../error-overlay/error-overlay.html">
+<link rel="import" href="../error-overlay/error-overlay-styles.html">
+
+<link rel="import" href="../fullscreen.html">
+<link rel="import" href="../../../iron-icons/iron-icons.html">
+
+<link rel="import" href="../web/web.html">
+
+<link rel="import" href="../node/node.html">
+<link rel="import" href="../connector/connector.html">
+<link rel="import" href="../set/set.html">
+<link rel="import" href="../list/list.html">
+
+<link rel="import" href="surface-styles.html">
+
+<dom-module id="yb-surface">
+
+  <style include="surface-styles"></style>
+  <style include="error-overlay-styles"></style>
+  <style include="fullscreen-style"></style>
+
+  <template>
+  
+    <div id="viewRoot">
+      <div id="background" on-mousedown="backgroundMousedown" on-dblclick="backgroundDblclick"></div>
+      <div id="boxSelection" class="hidden"></div>
+    </div>
+    
+    <paper-button class="edge-button" id="fullscreenButton" on-tap="toggleFullscreen">
+      <iron-icon icon="icons:fullscreen" item-icon></iron-icon>
+    </paper-button>
+    
+  </template>
+  
+  <script>
+    (function() {
+      Polymer({
+        is: 'yb-surface',
+        properties: {
+          node: {
+            type: String,
+            reflectToAttribute: true,
+          },
+          tabindex: {
+            value: '0',
+            reflectToAttribute: true,
+          },
+        },
+        behaviors: [
+          WebConsumer,
+          ErrorOverlay,
+          Yarnball.FullscreenBehavior,
+          Polymer.IronA11yKeysBehavior,
+          Yarnball._Surface_EmptyIndicator,
+          Yarnball._SurfaceBackgroundMenu,
+          Yarnball._SurfaceSelectionMenu,
+          Yarnball._SurfaceSearchPanel,
+        ],
+        created: function() {
+          var self = this;
+          
+          self.viewTranslate = {x: 0, y: 0};
+          self.viewScale     = 1.0;
+          self.viewOrigin    = {x: 0, y: 0};
+          self.viewMargin    = 10000;
+          
+          self.widgets       = new Set();
+          self.widgetsById   = new Map();
+          self.widgetsOfType = new Map();
+          self.widgetsTopLevel = new Set();
+          
+          self.selectedWidgets = new Set();
+          
+          self.nodesToWidgets = new Map();
+          
+          self.connectorsFrom = new Map();
+          self.connectorsVia  = new Map();
+          self.connectorsTo   = new Map();
+          self.activeConnectors = new Set();
+          self.linksToConnectors = new Map();
+          self.nodeWidgetsToConnectors = new Map();
+          
+          self.dragdropAreas = new Set();
+          
+          self.currentOperation = null;
+          
+          require(['yarnball/core/node', 'yarnball/core/link', 'yarnball/core/batch', 'widgets/zindex-manager'], function(Node, Link, Batch, zindex_manager) {
+            self.Node = Node;
+            self.Link = Link;
+            self.Batch = Batch;
+            self.zIndexManager = zindex_manager();
+            self.connectorsLayer          = self.zIndexManager.addLayer();
+            self.connectorHighlightsLayer = self.zIndexManager.addLayer();
+            self.nodesLayer               = self.zIndexManager.addLayer();
+          });
+        },
+        ready: function() {
+        
+          var self = this;
+          
+          self.viewRoot     = self.$.viewRoot;
+          self.background   = self.$.background;
+          self.boxSelection = self.$.boxSelection;
+          
+          self.setView(self.viewTranslate, self.viewScale, self.viewOrigin);
+        
+          // Install operations
+          require(
+            [
+              'widgets/surface/operations/pan-operation',
+              'widgets/surface/operations/zoom-operation',
+              'widgets/surface/operations/selection-operation',
+              'widgets/surface/operations/box-selection-operation',
+              'widgets/surface/operations/drag-operation',
+              'widgets/surface/operations/new-widget-operation',
+              'widgets/surface/operations/remove-widgets-operation',
+              'widgets/surface/operations/new-connector-drag-operation',
+              'widgets/surface/operations/new-connectors-operation',
+              'widgets/surface/operations/clone-widgets-operation',
+              'widgets/surface/operations/rename-operation',
+            ],
+            function() {
+              var operations = Array.from(arguments);
+              operations.forEach(function(operation) {
+                operation.install(self);
+              });
+            }
+          );
+        },
+        attached: function() {
+          var self = this;
+          
+          if (!self.node) {
+            var error = 'Cannot initialize surface, surface node not given.';
+            self.showErrorOverlay(error);
+            throw error;
+          }
+          
+          self.getWeb().then(function(web) {
+          
+            require(['yarnball/core/node'/*, 'widgets/surface/surface-web'*/], function(Node/*, SurfaceWeb*/) {
+            
+//               self.SurfaceWeb = SurfaceWeb;
+              
+              if (self.node) {
+                if (typeof self.node === 'string') {
+                  self.node = Node.fromHex(self.node);
+                }
+              } else {
+                self.node = Node();
+              }
+              
+              self.onLinks = self.onLinks.bind(self);
+              web.onLinks(self.onLinks);
+          
+//               self.surfaceWeb = SurfaceWeb(web, self.node);
+//               self.surfaceWeb.initializeSurface(self);
+              self.panZoomToShowAll();
+            });
+          });
+        },
+        detached: function() {
+          var self = this;
+          
+          if (self._web) {
+            self._web.removeLinksListener(self.onLinks);
+          }
+        },
+        hasOperation: function() {
+          return this.currentOperation !== null;
+        },
+        canBeginOperation: function() {
+          return !this.hasOperation() /*&& this.SurfaceWeb*/;
+        },
+        beginOperation: function(operation /* ... */) {
+          if (this.currentOperation !== null) {
+            return null;
+          }
+          var operation = new operation();
+          operation.surface     = this;
+          operation.batch       = this.Batch(this._web);
+//           operation.surfaceWeb  = this.SurfaceWeb(operation.batch, this.node);
+          this.currentOperation = operation;
+          var args = Array.prototype.slice.call(arguments, 1);
+          operation.begin.apply(operation, args);
+          return operation;
+        },
+        finishOperation: function(operation) {
+          operation.finish();
+          operation.batch.apply();
+          if (this.currentOperation === operation) {
+            this.currentOperation = null;
+          }
+        },
+        listeners: {
+          widgetAttached: 'widgetAttached',
+          widgetDetached: 'widgetDetached',
+          dragdropAreaAttached: 'dragdropAreaAttached',
+          dragdropAreaDetached: 'dragdropAreaDetached',
+        },
+        translateMouseEvent: function(event) {
+          var targetBoundingClientRect = event.target.getBoundingClientRect();
+          var viewRootBoundingClientRect = this.viewRoot.getBoundingClientRect();
+          return {
+            positionPage: {
+              x: event.pageX,
+              y: event.pageY,
+            },
+            positionClient: {
+              x: event.clientX,
+              y: event.clientY,
+            },
+            positionView: {
+              x: (event.clientX - viewRootBoundingClientRect.left) / this.viewScale,
+              y: (event.clientY - viewRootBoundingClientRect.top)  / this.viewScale,
+            },
+            positionTarget: {
+              x: (event.clientX - targetBoundingClientRect.left) / this.viewScale,
+              y: (event.clientY - targetBoundingClientRect.top)  / this.viewScale,
+            },
+          }
+        },
+        captureMouse: function(event, options) {
+        
+          var self = this;
+        
+          var cusorBeforeMouseCapture = document.body.style.cursor;
+          
+          if ('cursor' in options) {
+            document.body.style.cursor = options.cursor;
+          }
+          
+          var startMouseEventTranslated = self.translateMouseEvent(event);
+
+          var lastMouseEventTranslated = startMouseEventTranslated;
+          
+          self.classList.add('mouse-captured');
+          
+          function mousemove(event) {
+          
+            event.stopImmediatePropagation();
+            
+            var mouseEventTranslated = self.translateMouseEvent(event);
+            
+            var dragDeltaView = {
+              x: mouseEventTranslated.positionView.x - startMouseEventTranslated.positionView.x,
+              y: mouseEventTranslated.positionView.y - startMouseEventTranslated.positionView.y,
+            }
+            
+            var dragDeltaPage = {
+              x: mouseEventTranslated.positionPage.x - startMouseEventTranslated.positionPage.x,
+              y: mouseEventTranslated.positionPage.y - startMouseEventTranslated.positionPage.y,
+            }
+            
+            var currentDeltaPage = {
+              x: mouseEventTranslated.positionPage.x - lastMouseEventTranslated.positionPage.x,
+              y: mouseEventTranslated.positionPage.y - lastMouseEventTranslated.positionPage.y,
+            }
+            
+            var currentDeltaView = {
+              x: mouseEventTranslated.positionView.x - lastMouseEventTranslated.positionView.x,
+              y: mouseEventTranslated.positionView.y - lastMouseEventTranslated.positionView.y,
+            }
+            
+            if ('mousemove' in options) {
+              options.mousemove({
+                event: event,
+                currentPosPage: mouseEventTranslated.positionPage,
+                currentPosView: mouseEventTranslated.positionView,
+                dragDeltaPage: dragDeltaPage,
+                dragDeltaView: dragDeltaView,
+                currentDeltaPage: currentDeltaPage,
+                currentDeltaView: currentDeltaView,
+              });
+            }
+            
+            lastMouseEventTranslated = mouseEventTranslated;
+          }
+          
+          function mouseup(event) {
+          
+            window.removeEventListener('mousemove', mousemove);
+            window.removeEventListener('mouseup',   mouseup);
+            
+            if ('cursor' in options) {
+              document.body.style.cursor = cusorBeforeMouseCapture;
+            }
+          
+            self.classList.remove('mouse-captured');
+            
+            if ('mouseup' in options) {
+              options.mouseup(event);
+            }
+          }
+          
+          window.addEventListener('mousemove', mousemove);
+          window.addEventListener('mouseup',   mouseup);
+        },
+        setView: function(translate, scale, origin) {
+          this.viewTranslate = translate;
+          this.viewScale     = scale;
+          this.viewOrigin    = origin;
+          this.viewRoot.style.transform = 'translate(' + translate.x + 'px, ' + translate.y + 'px) scale(' + scale + ')';
+          this.viewRoot.style['transform-origin'] = origin.x + 'px ' + origin.y + 'px';
+        },
+        moveView: function(offset) {
+          this.setView({
+              x: this.viewTranslate.x + offset.x,
+              y: this.viewTranslate.y + offset.y,
+            },
+            this.viewScale,
+            this.viewOrigin
+          );
+        },
+        zoom: function(zoomOffset) {
+          var surfaceRect = this.getBoundingClientRect();
+          var viewRootRect = this.viewRoot.getBoundingClientRect();
+          var surfaceCenter = {
+            x: surfaceRect.left + (surfaceRect.width  / 2),
+            y: surfaceRect.top  + (surfaceRect.height / 2),
+          }
+          this.zoomOnPosition(
+            {
+              x: (surfaceCenter.x - viewRootRect.left) / this.viewScale,
+              y: (surfaceCenter.y - viewRootRect.top)  / this.viewScale,
+            },
+            zoomOffset,
+            true
+          );
+        },
+        zoomOnPosition: function(position, zoomOffset) {
+          this.setView(
+            {
+              x: this.viewTranslate.x + ((position.x - this.viewOrigin.x) * (this.viewScale - 1.0)),
+              y: this.viewTranslate.y + ((position.y - this.viewOrigin.y) * (this.viewScale - 1.0)),
+            },
+            this.viewScale * (1.0 + zoomOffset),
+            {
+              x: position.x,
+              y: position.y,
+            }
+          );
+        },
+        panZoomToShowAll: function() {
+          if (this.widgetsTopLevel.size === 0) {
+            return;
+          }
+          var widgetBounds = this.getAllWidgetsBounds();
+          var surfaceRect = this.getBoundingClientRect();
+          var widgetsCenter = {
+            x: widgetBounds.left + (widgetBounds.width  / 2),
+            y: widgetBounds.top  + (widgetBounds.height / 2),
+          }
+          var scaleToFit = null;
+          if ((widgetBounds.width / widgetBounds.height) > (surfaceRect.width / surfaceRect.height)) {
+            scaleToFit = surfaceRect.width / widgetBounds.width;
+          } else {
+            scaleToFit = surfaceRect.height / widgetBounds.height;
+          }
+          this.setView(
+            {
+              x: -(widgetsCenter.x - (surfaceRect.width  / 2)),
+              y: -(widgetsCenter.y - (surfaceRect.height / 2)),
+            },
+            Math.min(2, scaleToFit * 0.9),
+            widgetsCenter
+          );
+        },
+        backgroundMousedown: function(event) {
+        
+          var self = this;
+        
+          self.focus();
+          
+          var mouseEvent = self.translateMouseEvent(event);
+          
+          if (event.button === 0) {
+            
+            if (event.shiftKey) {
+              if (self.canBeginOperation()) {
+                var nodeWidget = self.createNodeWidget();
+                var position = {
+                  x: mouseEvent.positionView.x - 28,
+                  y: mouseEvent.positionView.y - 28,
+                }
+                var operation = self.beginOperation(self.NewWidgetOperation, nodeWidget, position);
+                self.selectWidgets([nodeWidget]);
+                self.beginOperation(self.DragOperation, event);
+              }
+            } else {
+              if (!event.ctrlKey) {
+                self.deselect();
+              }
+            }
+            
+          } else if (event.button === 2) {
+          
+            if (!event.ctrlKey) {
+              self.deselect();
+            }
+
+            return false;
+          }
+        },
+        backgroundDblclick: function(event) {
+          var mouseEvent = this.translateMouseEvent(event);
+          
+          if (this.canBeginOperation()) {
+            var nodeWidget = this.createNodeWidget();
+            var position = {
+              x: mouseEvent.positionView.x - 28,
+              y: mouseEvent.positionView.y - 28,
+            }
+            var operation = this.beginOperation(this.NewWidgetOperation, nodeWidget, position);
+            this.selectWidgets([nodeWidget]);
+          }
+        },
+        keyBindings: {
+          'backspace':          'handleKey_Backspace',
+          'del delete':         'handleKey_Del',
+          'ctrl+a':             'handleKey_CtrlA',
+          'ctrl+shift+a ctrl+d':'handleKey_Deselect',
+          'pageup':             'handleKey_PageUp',
+          'pagedown':           'handleKey_PageDown',
+          'ctrl+enter':         'handleKey_CtrlEnter',
+          'up down left right': 'handleKey_ArrowKeys',
+          'enter':              'handleKey_Enter',
+          'space':              'handleKey_Space',
+          'ctrl+space':         'handleKey_CtrlSpace',
+          'home':               'handleKey_Home',
+        },
+        handleKey_Backspace: function(event) {
+          if (this.canBeginOperation() && document.activeElement === this) {
+            event.preventDefault();
+            this.beginOperation(this.RemoveWidgetsOperation, this.getSelectedWidgetsTopLevel());
+            return false;
+          }
+        },
+        handleKey_Del: function(event) {
+          if (this.canBeginOperation() && document.activeElement === this) {
+            event.preventDefault();
+            this.beginOperation(this.RemoveWidgetsOperation, this.getSelectedWidgetsTopLevel(), {removeRepresented: true});
+            return false;
+          }
+        },
+        handleKey_CtrlA: function(event) {
+          if (!this.hasOperation() && document.activeElement === this) {
+            event.preventDefault();
+            this.selectAll();
+            return false;
+          }
+        },
+        handleKey_Deselect: function(event) {
+          if (!this.hasOperation() && document.activeElement === this) {
+            event.preventDefault();
+            this.deselect();
+            return false;
+          }
+        },
+        handleKey_PageUp: function(event) {
+          if (!this.hasOperation() && document.activeElement === this) {
+            event.preventDefault();
+            this.zoom(0.2);
+            return false;
+          }
+        },
+        handleKey_PageDown: function(event) {
+          if (!this.hasOperation() && document.activeElement === this) {
+            event.preventDefault();
+            this.zoom(-0.2);
+            return false;
+          }
+        },
+        handleKey_CtrlEnter: function(event) {
+          event.preventDefault();
+          this.toggleFullscreen();
+          return false;
+        },
+        handleKey_ArrowKeys: function(event) {
+          if (!this.hasOperation() && document.activeElement === this) {
+            var keyToDirection = {
+              ArrowUp:    'up',
+              ArrowDown:  'down',
+              ArrowLeft:  'left',
+              ArrowRight: 'right',
+            }
+            var direction = keyToDirection[event.detail.keyboardEvent.code];
+            this.moveSelection(direction);
+          }
+        },
+        handleKey_Enter: function(event) {
+          this.fire('enterKey', event);
+        },
+        handleKey_Space: function(event) {
+          if (this.canBeginOperation() && !event.detail.keyboardEvent.ctrlKey) {
+            this.beginOperation(this.NewConnectorsOperation, this.getLinksBetweenNodeWidgets(this.getSelectedWidgetsOfType('yb-node')));
+          }
+        },
+        handleKey_CtrlSpace: function(event) {
+          if (this.canBeginOperation()) {
+            var connectors = this.getSelectedWidgetsOfType('yb-connector');
+            this.getConnectorsBetweenNodeWidgets(this.getSelectedWidgetsOfType('yb-node')).forEach(function(connector) {
+              if (connector.active) {
+                connectors.add(connector);
+              }
+            });
+            this.beginOperation(this.RemoveWidgetsOperation, connectors);
+          }
+        },
+        handleKey_Home: function() {
+          this.panZoomToShowAll();
+        },
+        getElementViewRect: function(element) {
+          var elementClientRect = element.getBoundingClientRect();
+          var viewRootClientRect = this.viewRoot.getBoundingClientRect();
+          return {
+            left:   (elementClientRect.left   - viewRootClientRect.left) / this.viewScale,
+            top:    (elementClientRect.top    - viewRootClientRect.top)  / this.viewScale,
+            right:  (elementClientRect.right  - viewRootClientRect.left) / this.viewScale,
+            bottom: (elementClientRect.bottom - viewRootClientRect.top)  / this.viewScale,
+            width:  elementClientRect.width / this.viewScale,
+            height: elementClientRect.height / this.viewScale,
+          }
+        },
+        getAllWidgetsBounds: function() {
+          var self = this;
+          var bounds = {left: null, top: null, right: null, bottom: null};
+          self.widgetsTopLevel.forEach(function(widget) {
+            if (widget.widgetType !== 'yb-connector') {
+              var widgetBounds = self.getElementViewRect(widget);
+              bounds.left   = bounds.left   === null ? widgetBounds.left   : Math.min(bounds.left,   widgetBounds.left);
+              bounds.top    = bounds.top    === null ? widgetBounds.top    : Math.min(bounds.top,    widgetBounds.top);
+              bounds.right  = bounds.right  === null ? widgetBounds.right  : Math.max(bounds.right,  widgetBounds.right);
+              bounds.bottom = bounds.bottom === null ? widgetBounds.bottom : Math.max(bounds.bottom, widgetBounds.bottom);
+            }
+          });
+          if (bounds.left !== null && bounds.right !== null) {
+            bounds.width  = bounds.right  - bounds.left;
+            bounds.height = bounds.bottom - bounds.top;
+          }
+          return bounds;
+        },
+        getWidgetsTopLevel: function() {
+          return new Set(this.widgetsTopLevel);
+        },
+        getWidgetsTopLevelOfType: function(type) {
+          var self = this;
+          return new Set(Array.from(self.getWidgetsOfType(type)).filter(function(widget) {
+            return self.widgetsTopLevel.has(widget);
+          }));
+        },
+        getWidgetById: function(widgetId) {
+          return this.widgetsById.get(this.Node.toMapKey(widgetId));
+        },
+        getWidgetsOfType: function(type) {
+          return new Set(Array.from(this.widgets).filter(function(widget) {
+            return widget.widgetType === type;
+          }));
+        },
+        getWidgetPosition: function(widget) {
+          var viewRect = this.getElementViewRect(widget);
+          return {
+            x: viewRect.left,
+            y: viewRect.top,
+          }
+        },
+        combineRects: function(rects) {
+          var combinedRect = null;
+          Array.from(rects).forEach(function(rect) {
+            if (!combinedRect) {
+              combinedRect = rect;
+            } else {
+              combinedRect.left   = Math.min(combinedRect.left,   rect.left);
+              combinedRect.top    = Math.min(combinedRect.top,    rect.top);
+              combinedRect.right  = Math.max(combinedRect.right,  rect.right);
+              combinedRect.bottom = Math.max(combinedRect.bottom, rect.bottom);
+              combinedRect.width  = Math.max(combinedRect.width,  rect.width);
+              combinedRect.height = Math.max(combinedRect.height, rect.height);
+            }
+          });
+          return combinedRect;
+        },
+        getWidgetCenter: function(widget) {
+          var self = this;
+          if (widget.hasHandles() && widget.widgetType !== 'yb-connector') {
+            var nodeRect = self.combineRects(widget.getHandles().map(function(handle) {
+              return self.getElementViewRect(handle);
+            }));
+            return {
+              x: nodeRect.left + (nodeRect.width  / 2),
+              y: nodeRect.top  + (nodeRect.height / 2),
+            }
+          } else {
+            return null;
+          }
+        },
+        getWidgetsInRect: function(rect) {
+          var self = this;
+          return Array.from(self.widgets).filter(function(widget) {
+            return !self.isWidgetHidden(widget) && widget.getHandles().some(function(handle) {
+                var widgetRect = self.getElementViewRect(handle);
+                return !(widgetRect.left > rect.right  || widgetRect.right  < rect.left ||
+                         widgetRect.top  > rect.bottom || widgetRect.bottom < rect.top);
+              });
+          });
+        },
+        getAdjacentWidget: function(widget, direction) {
+          var self = this;
+          var widgetPosition = self.getWidgetCenter(widget);
+          var closestWidget = null;
+          var closestWidgetDistance = null;
+          self.widgets.forEach(function(otherWidget) {
+            var otherWidgetPosition = self.getWidgetCenter(otherWidget);
+            if (otherWidget !== widget && otherWidgetPosition && !self.isWidgetHidden(otherWidget) && self.direction(widgetPosition, otherWidgetPosition) === direction) {
+              var distanceToWidget = self.distance(widgetPosition, otherWidgetPosition);
+              if (closestWidget === null || (distanceToWidget < closestWidgetDistance)) {
+                closestWidget = otherWidget;
+                closestWidgetDistance = distanceToWidget;
+              }
+            }
+          });
+          return closestWidget;
+        },
+        moveSelection: function(direction) {
+          if (this.selectedWidgets.size === 1) {
+            var selectedWidget = Array.from(this.selectedWidgets)[0];
+            var adjacentWidget = this.getAdjacentWidget(selectedWidget, direction);
+            if (adjacentWidget) {
+              this.selectWidgets([adjacentWidget]);
+            }
+          }
+        },
+        getWidgetsForNode: function(id) {
+          var idMapKey = this.Node.toMapKey(id);
+          if (this.nodesToWidgets.has(idMapKey)) {
+            return this.nodesToWidgets.get(idMapKey);
+          } else {
+            return new Set();
+          }
+        },
+        getTopLevelWidgetsForNode: function(id) {
+          var self = this;
+          return new Set(Array.from(self.getWidgetsForNode(id)).filter(function(widget) {
+            return self.isTopLevelWidget(widget);
+          }));
+        },
+        getWidgetDragdropAreaParent: function(widget) {
+          if (widget.parentNode) {
+            if (widget.parentNode.tagName === 'yb-dragdrop-area'.toUpperCase()) {
+              return widget.parentNode;
+            } else {
+              return this.getWidgetDragdropAreaParent(widget.parentNode);
+            }
+          } else {
+            return null;
+          }
+        },
+        getNodeWidgetTriplesForLink: function(link, nodeWidgets) {
+          var self = this;
+          
+          var nodeWidgetsFrom = self.getTopLevelWidgetsForNode(link.from);
+          var nodeWidgetsVia  = self.getTopLevelWidgetsForNode(link.via);
+          var nodeWidgetsTo   = self.getTopLevelWidgetsForNode(link.to);
+          
+          if (nodeWidgets) {
+            nodeWidgetsFrom = Array.from(nodeWidgetsFrom).filter(function(nodeWidget) {
+              return nodeWidgets.has(nodeWidget);
+            });
+            nodeWidgetsVia = Array.from(nodeWidgetsVia).filter(function(nodeWidget) {
+              return nodeWidgets.has(nodeWidget);
+            });
+            nodeWidgetsTo = Array.from(nodeWidgetsTo).filter(function(nodeWidget) {
+              return nodeWidgets.has(nodeWidget);
+            });
+          }
+          
+          var nodeWidgetTriples = [];
+        
+          nodeWidgetsFrom.forEach(function(fromWidget) {
+            nodeWidgetsVia.forEach(function(viaWidget) {
+              nodeWidgetsTo.forEach(function(toWidget) {
+                
+                nodeWidgetTriples.push({
+                  from: fromWidget,
+                  via:  viaWidget,
+                  to:   toWidget
+                });
+              });
+            });
+          });
+          
+          return nodeWidgetTriples;
+        },
+        getBestNodeWidgetTriplesForLink: function(link, nodeWidgets) {
+          var self = this;
+          
+          var nodeWidgetTriples = self.getNodeWidgetTriplesForLink(link, nodeWidgets);
+          
+          // Sort by length
+          nodeWidgetTriples.sort(function(a, b) {
+            return self.getNodeWidgetTripleDistance(a) - self.getNodeWidgetTripleDistance(b);
+          });
+          
+          // Return non-overlapping triples
+          var nodeWidgetsUsed = new Set();
+          return nodeWidgetTriples.filter(function(nodeWidgetTriple) {
+          
+            var alreadyUsedWidgets = !nodeWidgetsUsed.has(nodeWidgetTriple.from) &&
+                                     !nodeWidgetsUsed.has(nodeWidgetTriple.via)  &&
+                                     !nodeWidgetsUsed.has(nodeWidgetTriple.to);
+            
+            nodeWidgetsUsed.add(nodeWidgetTriple.from);
+            nodeWidgetsUsed.add(nodeWidgetTriple.via);
+            nodeWidgetsUsed.add(nodeWidgetTriple.to);
+            
+            return alreadyUsedWidgets;
+          });
+        },
+        distance: function(a, b) {
+          var dx = a.x - b.x;
+          var dy = a.y - b.y;
+          return Math.sqrt(dx*dx + dy*dy);
+        },
+        direction: function(a, b) {
+          var delta = {
+            x: b.x - a.x,
+            y: b.y - a.y,
+          }
+          var downLeft  = (-delta.x + delta.y) > 0;
+          var downRight = ( delta.x + delta.y) > 0;
+          if ( downLeft &&  downRight) return 'down';
+          if (!downLeft && !downRight) return 'up';
+          if ( downLeft && !downRight) return 'left';
+          if (!downLeft &&  downRight) return 'right';
+        },
+        getNodeWidgetTripleDistance: function(nodeWidgetTriple) {
+          var fromPos = this.getWidgetCenter(nodeWidgetTriple.from);
+          var viaPos  = this.getWidgetCenter(nodeWidgetTriple.via);
+          var toPos   = this.getWidgetCenter(nodeWidgetTriple.to);
+          
+          return this.distance(fromPos, viaPos) + this.distance(viaPos, toPos);
+        },
+        createConnectorsForLink: function(link, nodeWidgets, newConnectorOptions) {
+          var self = this;
+          var triples = self.getBestNodeWidgetTriplesForLink(link, nodeWidgets);
+          
+          if (!newConnectorOptions || newConnectorOptions.active) {
+            // Only create active connectors between widgets that don't already have one
+            triples = triples.filter(function(triple) {
+              var connectors = self.getConnectorsForWidgetTriple(triple);
+              return !connectors.some(function(connector) {
+                return connector.active;
+              });
+            });
+          }
+          
+          return triples.map(function(triple) {
+            return self.createConnector(triple, newConnectorOptions);
+          });
+        },
+        getConnectorsForLink: function(link) {
+          var linkKey = this.Link.toKey(link);
+          if (this.linksToConnectors.has(linkKey)) {
+            return new Set(Array.from(this.linksToConnectors.get(linkKey)));
+          } else {
+            return new Set();
+          }
+        },
+        getConnectorsBetweenNodeWidgets: function(nodeWidgets) {
+          return Array.from(this.getWidgetsOfType('yb-connector')).filter(function(connector) {
+            return nodeWidgets.has(connector.fromWidget) &&
+                   nodeWidgets.has(connector.viaWidget) &&
+                   nodeWidgets.has(connector.toWidget);
+          });
+        },
+        getConnectorsForWidgetTriple: function(nodeWidgetsTriple) {
+          var nodeWidgetsLinkKey = this.Link.toKey({
+            from: nodeWidgetsTriple.from.widgetId,
+            via:  nodeWidgetsTriple.via.widgetId,
+            to:   nodeWidgetsTriple.to.widgetId,
+          });
+          if (this.nodeWidgetsToConnectors.has(nodeWidgetsLinkKey)) {
+            return Array.from(this.nodeWidgetsToConnectors.get(nodeWidgetsLinkKey));
+          } else {
+            return [];
+          }
+        },
+        getDragdropAreas: function() {
+          return new Set(this.dragdropAreas);
+        },
+        onLinks: function(linksAdded, linksRemoved) {
+          var self = this;
+          
+          self.highlightLinks(linksAdded,   {color: '#2FB51E'});
+          self.highlightLinks(linksRemoved, {color: '#E05749', reverse: true});
+          
+          linksRemoved.forEach(function(link) {
+            var connectors = self.getConnectorsForLink(link);
+            connectors.forEach(function(connector) {
+              if (connector.active) {
+                self.removeWidget(connector);
+              }
+            });
+          });
+        },
+        highlightLinks: function(links, options) {
+          var self = this;
+          
+          links.forEach(function(link) {
+            var triples = self.getBestNodeWidgetTriplesForLink(link);
+            triples.forEach(function(triple) {
+              self.highlightWidgetTriple(triple, options);
+            });
+          });
+        },
+        highlightWidgetTriple: function(triple, options) {
+          var self = this;
+          
+          var connector = self.createConnector(triple, {active: false});
+          
+          var animation = connector.highlight(options);
+          
+          function animationFinished() {
+            self.removeWidget(connector);
+          }
+          
+          if ('finished' in animation) {
+            animation.finished.then(animationFinished);
+          } else if ('onfinish' in animation) {
+            animation.onfinish = animationFinished;
+          } else {
+            animationFinished();
+          }
+        },
+        createNodeWidget: function(id, widgetId) {
+          
+          var nodeWidget = document.createElement('yb-node');
+          if (!id) {
+            id = this.Node();
+          }
+          nodeWidget.set('nodeId', this.Node.toHex(id));
+          if (!widgetId) {
+            widgetId = this.Node();
+          }
+          nodeWidget.widgetId = widgetId;
+          
+          return nodeWidget;
+        },
+        attachWidget: function(widget, position) {
+          var self = this;
+          
+          if (position) {
+            widget.style.position = 'absolute';
+            widget.style.left = position.x + 'px';
+            widget.style.top  = position.y + 'px';
+          }
+          
+          Polymer.dom(self.viewRoot).appendChild(widget);
+        },
+        detachWidget: function(widget) {
+          widget.classList.remove('yb-surface');
+          return this.viewRoot.removeChild(widget);
+        },
+        removeWidget: function(widget) {
+          return this.viewRoot.removeChild(widget);
+        },
+        removeWidgets: function(widgets) {
+          var self = this;
+          
+          widgets = Array.from(widgets);
+          
+          for (var i=0; i<widgets.length; i++) {
+            if (widgets[i].parentNode !== self.viewRoot) {
+              throw "Cannot remove widget, the widget is not a child of the surface view root.";
+            }
+          }
+          
+          widgets.forEach(function(widget) {
+            // Check that the removal of a previous widget hasn't implicitly removed this widget
+            if (widget.parentNode === self.viewRoot) {
+              self.removeWidget(widget);
+            }
+          });
+        },
+        widgetAttached: function(event) {
+          var self = this;
+          
+          var widget = event.detail;
+          
+          if (self.widgets.has(widget)) {
+            throw 'Widget attached to surface is already registered as attached.';
+          }
+          
+          self.widgets.add(widget);
+          
+          if (self.Node) {
+            if (!widget.widgetId) {
+              widget.widgetId = self.Node();
+            }
+            
+            self.widgetsById.set(self.Node.toMapKey(widget.widgetId), widget);
+          }
+          
+          if (!self.widgetsOfType.has(widget.widgetType)) {
+            self.widgetsOfType.set(widget.widgetType, new Set([widget]))
+          } else {
+            self.widgetsOfType.get(widget.widgetType).add(widget);
+          }
+          
+          if (widget.widgetType === 'yb-node') {
+          
+            var idMapKey = self.Node.toMapKey(self.Node.fromHex(widget.nodeId));
+            
+            if (!self.nodesToWidgets.has(idMapKey)) {
+              self.nodesToWidgets.set(idMapKey, new Set([widget]));
+            } else {
+              self.nodesToWidgets.get(idMapKey).add(widget);
+            }
+          
+            self._setupNodeWidgetHighlighting(widget);
+            
+          }
+          
+          if (self.isTopLevelWidget(widget)) {
+          
+            self.widgetsTopLevel.add(widget);
+          
+            // Assign to layer
+            if (widget.widgetType === 'yb-connector') {
+              if (widget.active) {
+                self.connectorsLayer.append(widget);
+              } else {
+                self.connectorHighlightsLayer.append(widget);
+              }
+            } else {
+              self.nodesLayer.append(widget);
+            }
+            
+            widget.addEventListener('dimensionsChanged', function(event) {
+              self.updateConnectorsForNodeWidget(widget);
+            });
+          }
+        },
+        widgetDetached: function(event) {
+          var self = this;
+        
+          var widget = event.detail;
+          
+          if (widget.widgetType === 'yb-node') {
+          
+            self.removeWidgets(widget.connectors());
+            
+          } else if (widget.widgetType === 'yb-connector') {
+            
+            if (widget.fromWidget && widget.viaWidget && widget.toWidget) {
+          
+              var linkKey = self.Link.toKey({
+                from: self.Node.fromHex(widget.fromWidget.nodeId),
+                via:  self.Node.fromHex(widget.viaWidget.nodeId),
+                to:   self.Node.fromHex(widget.toWidget.nodeId),
+              });
+              if (self.linksToConnectors.has(linkKey)) {
+                var connectors = self.linksToConnectors.get(linkKey);
+                connectors.delete(widget);
+                if (connectors.size === 0) {
+                  self.linksToConnectors.delete(linkKey);
+                }
+              }
+              
+              var nodeWidgetsKey = self.Link.toKey({
+                from: widget.fromWidget.widgetId,
+                via:  widget.viaWidget.widgetId,
+                to:   widget.toWidget.widgetId,
+              });
+              if (self.nodeWidgetsToConnectors.has(nodeWidgetsKey)) {
+                var connectors = self.nodeWidgetsToConnectors.get(nodeWidgetsKey);
+                connectors.delete(widget);
+                if (connectors.size === 0) {
+                  self.nodeWidgetsToConnectors.delete(nodeWidgetsKey);
+                }
+              }
+              
+              widget.fromWidget.connectorsFrom.delete(widget);
+              widget.viaWidget.connectorsVia.delete(widget);
+              widget.toWidget.connectorsTo.delete(widget);
+            }
+          }
+          
+          if (self.widgetsTopLevel.has(widget)) {
+          
+            // Remove from layer
+            if (widget.widgetType === 'yb-connector') {
+              if (widget.active) {
+                self.connectorsLayer.remove(widget);
+              } else {
+                self.connectorHighlightsLayer.remove(widget);
+              }
+            } else {
+              self.nodesLayer.remove(widget);
+            }
+
+            self.widgetsTopLevel.delete(widget);
+          }
+          
+          self.widgets.delete(widget);
+          
+          self.widgetsById.delete(self.Node.toMapKey(widget.widgetId));
+          
+          if (self.selectedWidgets.has(widget)) {
+            self.selectedWidgets.delete(widget);
+            widget.setSelected(false);
+          }
+          
+          widget.widgets.forEach(function(childWidget) {
+            self.widgets.delete(childWidget);
+            if (self.selectedWidgets.has(childWidget)) {
+              self.selectedWidgets.delete(childWidget);
+              childWidget.setSelected(false);
+            }
+          });
+        },
+        _setupNodeWidgetHighlighting: function(nodeWidget) {
+          var self = this;
+          nodeWidget.addEventListener('mouseover', function(event) {
+            var nodeCopies = [];
+            self.getWidgetsOfType('yb-node').forEach(function(otherNodeWidget) {
+              if (otherNodeWidget !== nodeWidget && (
+                  otherNodeWidget.nodeId === nodeWidget.nodeId ||
+                  self.Node.equal(self.Node.fromHex(otherNodeWidget.nodeId), nodeWidget.widgetId) ||
+                  self.Node.equal(otherNodeWidget.widgetId, self.Node.fromHex(nodeWidget.nodeId))
+                  )) {
+                nodeCopies.push(otherNodeWidget);
+                otherNodeWidget.set('highlighted', true);
+              }
+            });
+            function stopHighlighting() {
+              nodeWidget.removeEventListener('mouseout', stopHighlighting);
+              nodeWidget.removeEventListener('detached', stopHighlighting);
+              nodeCopies.forEach(function(nodeWidgetCopy) {
+                nodeWidgetCopy.set('highlighted', false);
+              });
+            }
+            nodeWidget.addEventListener('mouseout', stopHighlighting);
+            nodeWidget.addEventListener('detached', stopHighlighting);
+          });
+        },
+        isWidgetSelected: function(widget) {
+          return this.selectedWidgets.has(widget);
+        },
+        selectWidgets: function(widgets, appendSelection) {
+          var self = this;
+          
+          widgets = new Set(widgets);
+          
+          if (appendSelection) {
+            self.selectedWidgets.forEach(function(widget) {
+              widgets.add(widget);
+            });
+          }
+          
+          // Deselect previously selected widgets
+          self.selectedWidgets.forEach(function(widget) {
+            if (!widgets.has(widget)) {
+              widget.setSelected(false);
+            }
+          });
+          
+          // Select new widgets
+          widgets.forEach(function(widget) {
+            if (!self.selectedWidgets.has(widget)) {
+              widget.setSelected(true);
+            }
+          });
+          
+          self.selectedWidgets = widgets;
+        },
+        deselectWidgets: function(widgets) {
+          widgets = new Set(widgets);
+          widgets.forEach(function(widget) {
+            widget.setSelected(false);
+          });
+          this.selectedWidgets = new Set(Array.from(this.selectedWidgets).filter(function(widget) {
+            return !widgets.has(widget);
+          }));
+        },
+        selectAll: function() {
+          var self = this;
+          var nonHiddenWidgets = Array.from(this.widgets).filter(function(widget) {
+            return !self.isWidgetHidden(widget);
+          });
+          self.selectWidgets(nonHiddenWidgets);
+          var nodeWidgets = nonHiddenWidgets.filter(function(widget) {
+            return widget.widgetType === 'yb-node';
+          });
+          self.highlightLinksBetweenNodeWidgets(nodeWidgets);
+        },
+        deselect: function() {
+          this.selectedWidgets.forEach(function(widget) {
+            widget.setSelected(false);
+          });
+          this.selectedWidgets.clear();
+        },
+        isTopLevelWidget: function(widget) {
+          return widget.parentNode === this.viewRoot;
+        },
+        isWidgetHidden: function(widget) {
+          if (widget.classList.contains('hidden')) {
+            return true;
+          }
+          if (widget.parentNode && widget.parentNode !== this) {
+            return this.isWidgetHidden(widget.parentNode);
+          }
+          return false;
+        },
+        bringWidgetsToFront: function(widgets) {
+          widgets = Array.from(widgets);
+          
+          var connectors = widgets.filter(function(widget) {
+            return widget.widgetType === 'yb-connector';
+          });
+          this.connectorsLayer.bringToFront(connectors);
+          
+          var otherWidgets = widgets.filter(function(widget) {
+            return widget.widgetType !== 'yb-connector';
+          });
+          this.nodesLayer.bringToFront(otherWidgets);
+        },
+        getWidgetParents: function(widget) {
+          var parents = [];
+          var currentParent = widget.parentNode;
+          while (currentParent) {
+            if (currentParent === this) {
+              break;
+            }
+            parents.push(currentParent);
+            currentParent = currentParent.parentNode;
+          }
+          return parents;
+        },
+        setWidgetPosition: function(widget, position) {
+          widget.style.left = position.x + 'px';
+          widget.style.top  = position.y + 'px';
+          
+          if (widget.widgetType === 'yb-node') {
+            this.updateConnectorsForNodeWidget(widget);
+          }
+        },
+        getSelectedWidgets: function() {
+          return new Set(this.selectedWidgets);
+        },
+        getSelectedWidgetsTopLevel: function() {
+          var self = this;
+          return new Set(Array.from(self.selectedWidgets).filter(function(widget) {
+            return self.isTopLevelWidget(widget);
+          }));
+        },
+        getSelectedWidgetsOfType: function(type) {
+          return new Set(Array.from(this.selectedWidgets).filter(function(widget) {
+            return widget.widgetType === type;
+          }));
+        },
+        duplicateWidgets: function(widgets, offset) {
+          var self = this;
+          
+          var newWidgets = [];
+          
+          var oldToNewNodeWidgetMap = new Map();
+          
+          // Duplcate nodes and sets
+          widgets.forEach(function(widget) {
+            var newWidget = null;
+            
+            if (widget.widgetType === 'yb-node') {
+              newWidget = self.createNodeWidget(self.Node.fromHex(widget.nodeId));
+              oldToNewNodeWidgetMap.set(widget, newWidget);
+            } else if (widget.widgetType === 'yb-set') {
+              newWidget = self.createSetWidget(widget.getFilter());
+            }
+            
+            if (newWidget) {
+              var widgetPosition = self.getWidgetPosition(widget);
+              var newPosition = {
+                x: widgetPosition.x + (offset || 0),
+                y: widgetPosition.y + (offset || 0),
+              }
+              self.attachWidget(newWidget, newPosition);
+              newWidgets.push(newWidget);
+            }
+          });
+          
+          // Duplcate connectors
+          widgets.forEach(function(widget) {
+            if (widget.widgetType === 'yb-connector') {
+              if (widgets.has(widget.fromWidget) &&
+                  widgets.has(widget.viaWidget) &&
+                  widgets.has(widget.toWidget)) {
+                
+                var newConnector = self.createConnector({
+                  from: oldToNewNodeWidgetMap.get(widget.fromWidget),
+                  via:  oldToNewNodeWidgetMap.get(widget.viaWidget),
+                  to:   oldToNewNodeWidgetMap.get(widget.toWidget),
+                });
+                newWidgets.push(newConnector);
+              }
+            }
+          });
+          
+          return newWidgets;
+        },
+        highlightLinksBetweenNodeWidgets: function(nodeWidgets) {
+        
+          var self = this;
+          
+          var delay = 0.0;
+          
+          var nodeWidgets = new Set(nodeWidgets);
+          
+          self._web.getLinks().forEach(function(link) {
+          
+            var triples = self.getBestNodeWidgetTriplesForLink(link, nodeWidgets);
+            
+            if (triples.length > 0) {
+              triples.forEach(function(triple) {
+                self.highlightWidgetTriple(triple, {color: '#2FB51E', delay: delay});
+              });
+              
+              delay += 150;
+            }
+          });
+        },
+        getLinksBetweenNodeWidgets: function(nodeWidgets) {
+          var self = this;
+          var nodeWidgetTriples = [];
+          self._web.getLinks().forEach(function(link) {
+            var triples = self.getBestNodeWidgetTriplesForLink(link, nodeWidgets);
+            nodeWidgetTriples = nodeWidgetTriples.concat(triples);
+          });
+          return nodeWidgetTriples;
+        },
+        createConnector: function(nodeWidgets, options) {
+        
+          var self = this;
+        
+          var connector = document.createElement('yb-connector');
+          
+          options = options || {};
+          
+          connector.active = ('active' in options) ? options.active : true;
+          
+          if (!options.widgetId) {
+            options.widgetId = self.Node();
+          }
+          connector.widgetId = options.widgetId;
+          
+          connector.set('showHandles',    connector.active);
+          connector.set('highlightOnly', !connector.active);
+          
+          if (connector.active) {
+            self.activeConnectors.add(connector);
+          } else {
+            connector.classList.add('inactive');
+          }
+          
+          connector.fromWidget = nodeWidgets.from;
+          connector.viaWidget  = nodeWidgets.via;
+          connector.toWidget   = nodeWidgets.to;
+         
+          nodeWidgets.from.connectorsFrom.add(connector);
+          nodeWidgets.via.connectorsVia.add(connector);
+          nodeWidgets.to.connectorsTo.add(connector);
+          
+          var linkKey = self.Link.toKey({
+            from: self.Node.fromHex(nodeWidgets.from.nodeId),
+            via:  self.Node.fromHex(nodeWidgets.via.nodeId),
+            to:   self.Node.fromHex(nodeWidgets.to.nodeId),
+          });
+          if (self.linksToConnectors.has(linkKey)) {
+            self.linksToConnectors.get(linkKey).add(connector);
+          } else {
+            self.linksToConnectors.set(linkKey, new Set([connector]));
+          }
+          
+          var nodeWidgetsLinkKey = self.Link.toKey({
+            from: nodeWidgets.from.widgetId,
+            via:  nodeWidgets.via.widgetId,
+            to:   nodeWidgets.to.widgetId,
+          });
+          if (self.nodeWidgetsToConnectors.has(nodeWidgetsLinkKey)) {
+            self.nodeWidgetsToConnectors.get(nodeWidgetsLinkKey).add(connector);
+          } else {
+            self.nodeWidgetsToConnectors.set(nodeWidgetsLinkKey, new Set([connector]));
+          }
+          
+          if (!self.connectorsFrom.has(nodeWidgets.from)) {
+            self.connectorsFrom.set(nodeWidgets.from, [connector]);
+          } else {
+            self.connectorsFrom.get(nodeWidgets.from).push(connector);
+          }
+          
+          if (!self.connectorsVia.has(nodeWidgets.via)) {
+            self.connectorsVia.set(nodeWidgets.via, [connector]);
+          } else {
+            self.connectorsVia.get(nodeWidgets.via).push(connector);
+          }
+          
+          if (!self.connectorsTo.has(nodeWidgets.to)) {
+            self.connectorsTo.set(nodeWidgets.to, [connector]);
+          } else {
+            self.connectorsTo.get(nodeWidgets.to).push(connector);
+          }
+          
+          var fromCenter = self.getWidgetCenter(nodeWidgets.from);
+          var viaCenter  = self.getWidgetCenter(nodeWidgets.via);
+          var toCenter   = self.getWidgetCenter(nodeWidgets.to);
+          
+          connector.set('fromPos', {
+            x: fromCenter.x + self.viewMargin,
+            y: fromCenter.y + self.viewMargin,
+          });
+          connector.set('viaPos', {
+            x: viaCenter.x + self.viewMargin,
+            y: viaCenter.y + self.viewMargin,
+          });
+          connector.set('toPos', {
+            x: toCenter.x + self.viewMargin,
+            y: toCenter.y + self.viewMargin,
+          });
+          
+          if (connector.active) {
+            self._setupConnectorMenu(connector);
+            self._setupConnectorHighlight(connector);
+          }
+          
+          self.attachWidget(connector);
+          
+          return connector;
+        },
+        _setupConnectorMenu: function(connector) {
+          var self = this;
+          connector.addEventListener('contextMenu', function(event) {
+            self.openSelectionMenu(event.detail);
+          });
+        },
+        _setupConnectorHighlight: function(connector) {
+          var self = this;
+          connector.addEventListener('mouseover', function(event) {
+            self.connectorsLayer.bringToFront([connector]);
+          });
+        },
+        updateConnectorsForNodeWidget: function(nodeWidget) {
+          var self = this;
+          
+          var nodeCenter = self.getWidgetCenter(nodeWidget);
+          
+          if (self.connectorsFrom.has(nodeWidget)) {
+            var connectorsFrom = self.connectorsFrom.get(nodeWidget);
+            connectorsFrom.forEach(function(connector) {
+              connector.set('fromPos', {
+                x: nodeCenter.x + self.viewMargin,
+                y: nodeCenter.y + self.viewMargin,
+              });
+            });
+          }
+          if (self.connectorsVia.has(nodeWidget)) {
+            var connectorsVia = self.connectorsVia.get(nodeWidget);
+            connectorsVia.forEach(function(connector) {
+              connector.set('viaPos', {
+                x: nodeCenter.x + self.viewMargin,
+                y: nodeCenter.y + self.viewMargin,
+              });
+            });
+          }
+          if (self.connectorsTo.has(nodeWidget)) {
+            var connectorsTo = self.connectorsTo.get(nodeWidget);
+            connectorsTo.forEach(function(connector) {
+              connector.set('toPos', {
+                x: nodeCenter.x + self.viewMargin,
+                y: nodeCenter.y + self.viewMargin,
+              });
+            })
+          }
+        },
+        createSetWidget: function(filter) {
+        
+          var setWidget = document.createElement('yb-set');
+          
+          if (filter) {
+            if (filter.from) {
+              setWidget.set('from', this.Node.toHex(filter.from));
+            }
+            if (filter.via) {
+              setWidget.set('via', this.Node.toHex(filter.via));
+            }
+            if (filter.to) {
+              setWidget.set('to', this.Node.toHex(filter.to));
+            }
+          }
+          
+          return setWidget;
+        },
+        dragdropAreaAttached: function(event) {
+          this.dragdropAreas.add(event.detail);
+        },
+        dragdropAreaDetached: function(event) {
+          this.dragdropAreas.delete(event.detail);
+        },
+      });
+    })();
+  </script>
+
+</dom-module>

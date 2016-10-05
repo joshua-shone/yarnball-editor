@@ -1,0 +1,89 @@
+<link rel="import" href="../../../polymer/polymer.html">
+
+<link rel="import" href="all-nodes-styles.html">
+
+<link rel="import" href="../widget.html">
+<link rel="import" href="../node/node.html">
+
+<dom-module id="yb-all-nodes">
+
+  <style include="all-nodes-styles"></style>
+
+  <template>
+    <input type="text" id="searchTextbox" on-input="searchTextboxChanged">
+    <div id="widgetsContainer"></div>
+  </template>
+  
+  <script>
+    (function() {
+      'use strict';
+      
+      Polymer({
+        is: 'yb-all-nodes',
+        behaviors: [WidgetBehavior],
+        ready: function() {
+        
+          var self = this;
+          
+          self.nodeWidgets = new Map();
+          
+          self.getWeb().then(function(web) {
+          
+            require(['yarnball/core/node'], function(Node) {
+            
+              self.Node = Node;
+            
+              web.getNames().forEach(function(node) {
+                self.addNodeWidget(node.id);
+              });
+              web.onNames(function(namesAdded, namesRemoved) {
+                namesAdded.forEach(function(node) {
+                  if (self.nodeWidgets.has(self.Node.toMapKey(node.id))) {
+                    var nodeWidget = self.nodeWidgets.get(self.Node.toMapKey(node.id));
+                    nodeWidget.updateName(node.name);
+                  } else {
+                    self.addNodeWidget(node.id, node.name);
+                  }
+                });
+                namesRemoved.forEach(function(node) {
+                  self.removeNodeWidget(node);
+                });
+                self.applySearch();
+              });
+            });
+          });
+        },
+        addNodeWidget: function(nodeId, name) {
+          if (!this.nodeWidgets.has(this.Node.toMapKey(nodeId))) {
+            var nodeWidget = document.createElement('yb-node');
+            nodeWidget.nodeId = this.Node.toHex(nodeId);
+            nodeWidget.updateName(name);
+            this.nodeWidgets.set(this.Node.toMapKey(nodeId), nodeWidget);
+            Polymer.dom(this.$.widgetsContainer).appendChild(nodeWidget);
+          }
+        },
+        removeNodeWidget: function(nodeId) {
+          if (this.nodeWidgets.has(this.Node.toMapKey(nodeId))) {
+            var nodeWidget = this.nodeWidgets.get(this.Node.toMapKey(nodeId));
+            this.nodeWidgets.delete(this.Node.toMapKey(nodeId));
+            Polymer.dom(this.$.widgetsContainer).removeChild(nodeWidget);
+          }
+        },
+        searchTextboxChanged: function(event) {
+          this.applySearch();
+          this.fire('search-query-changed', this.$.searchTextbox.value);
+        },
+        applySearch: function() {
+          var self = this;
+          self.nodeWidgets.forEach(function(nodeWidget) {
+            nodeWidget.classList.toggle('hidden', !self.nameMatchesSearch(nodeWidget.name));
+          });
+        },
+        nameMatchesSearch: function(name) {
+          return name.toLowerCase().includes(this.$.searchTextbox.value.toLowerCase());
+        },
+      });
+    })();
+  </script>
+
+</dom-module>

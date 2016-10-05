@@ -1,0 +1,40 @@
+<link rel="import" href="../../../iron-icons/iron-icons.html">
+
+<script>
+  ErrorOverlay = {
+    showErrorOverlay: function(message, icon) {
+      var errorOverlay = document.createElement('div');
+      errorOverlay.classList.add('error-overlay');
+      errorOverlay.classList.add('style-scope');
+      errorOverlay.classList.add(this.tagName.toLowerCase());
+      
+      // Icon
+      icon = icon || 'icons:warning';
+      var iconElement = document.createElement('iron-icon');
+      iconElement.set('icon', icon);
+      iconElement.classList.add('error-icon');
+      iconElement.classList.add('style-scope');
+      iconElement.classList.add(this.tagName.toLowerCase());
+      errorOverlay.appendChild(iconElement);
+      
+      // Message
+      var messageElement = document.createElement('span');
+      messageElement.classList.add('error-message');
+      messageElement.textContent = message;
+      messageElement.classList.add('style-scope');
+      messageElement.classList.add(this.tagName.toLowerCase());
+      errorOverlay.appendChild(messageElement);
+        
+      this.classList.add('has-error-overlay');
+      this.appendChild(errorOverlay);
+      this._errorOverlay = errorOverlay;
+    },
+    hideErrorOverlay: function() {
+      this.classList.remove('has-error-overlay');
+      if (this._errorOverlay) {
+        this.removeChild(this._errorOverlay);
+        this._errorOverlay = null;
+      }
+    },
+  }
+</script>

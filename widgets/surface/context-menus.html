@@ -1,0 +1,217 @@
+<link rel="import" href="../../../polymer/polymer.html">
+
+<link rel="import" href="../../../paper-menu/paper-menu.html">
+<link rel="import" href="../../../paper-item/paper-icon-item.html">
+
+<dom-module id="context-menu-styles">
+  <template>
+    <style>
+      :host.hidden {
+        display: none;
+      }
+      :host {
+        display: block;
+        position: absolute;
+        z-index: 4;
+        background-color: white;
+        border-radius: 3px;
+        box-shadow: 0px 2px 6px #ccc;
+      }
+      :host paper-item,
+      :host paper-icon-item {
+        cursor: pointer;
+      }
+      :host paper-item:hover,
+      :host paper-icon-item:hover {
+        background: #E2F4FF;
+      }
+    </style>
+  </template>
+</dom-module>
+
+<dom-module id="yb-surface-background-menu">
+  <template>
+    <paper-menu>
+      <paper-icon-item on-tap="createNodeWidget">
+        <iron-icon icon="icons:add" item-icon></iron-icon>
+        Add Node
+      </paper-icon-item>
+      <paper-icon-item on-tap="createSetWidget">
+        <iron-icon icon="icons:add" item-icon></iron-icon>
+        Add Set
+      </paper-icon-item>
+    </paper-menu>
+  </template>
+  <style include="context-menu-styles"></style>
+  <script>
+    (function() {
+      Polymer({
+        is: 'yb-surface-background-menu',
+        ready: function() {
+          this.classList.add('hidden');
+        },
+        createNodeWidget: function() {
+          this.surface.closeBackgroundMenu();
+          var nodeWidget = this.surface.createNodeWidget();
+          var operation = this.surface.beginOperation(this.surface.NewWidgetOperation, nodeWidget, this.surface.lastBackgroundMenuPosition);
+          this.surface.selectWidgets([nodeWidget]);
+        },
+        createSetWidget: function() {
+          this.surface.closeBackgroundMenu();
+          var setWidget = this.surface.createSetWidget();
+          var operation = this.surface.beginOperation(this.surface.NewWidgetOperation, setWidget, this.surface.lastBackgroundMenuPosition);
+          this.surface.selectWidgets([setWidget]);
+        },
+      });
+    })();
+  </script>
+</dom-module>
+
+<dom-module id="yb-surface-selection-menu">
+  <template>
+    <paper-menu>
+      <paper-icon-item on-tap="copySelected">
+        <iron-icon icon="icons:content-copy" item-icon></iron-icon>
+        Copy
+      </paper-icon-item>
+      <paper-icon-item on-tap="revealLinks">
+        <iron-icon icon="icons:visibility" item-icon></iron-icon>
+        Reveal Links
+      </paper-icon-item>
+      <paper-icon-item on-tap="hideLinks">
+        <iron-icon icon="icons:visibility-off" item-icon></iron-icon>
+        Hide Links
+      </paper-icon-item>
+      <paper-icon-item on-tap="hideSelected">
+        <iron-icon icon="icons:visibility-off" item-icon></iron-icon>
+        Hide
+      </paper-icon-item>
+      <paper-icon-item on-tap="deleteSelected">
+        <iron-icon icon="icons:delete" item-icon></iron-icon>
+        Delete
+      </paper-icon-item>
+    </paper-menu>
+  </template>
+  <style include="context-menu-styles"></style>
+  <script>
+    (function() {
+      Polymer({
+        is: 'yb-surface-selection-menu',
+        ready: function() {
+          this.classList.add('hidden');
+        },
+        copySelected: function() {
+          this.surface.closeSelectionMenu();
+          var offset = 10;
+          var operation = this.surface.beginOperation(this.surface.CloneWidgetsOperation, this.surface.getSelectedWidgets(), offset);
+          this.surface.selectWidgets(operation.newWidgets);
+        },
+        revealLinks: function() {
+          this.surface.closeSelectionMenu();
+          if (this.surface.canBeginOperation()) {
+            this.surface.beginOperation(this.surface.NewConnectorsOperation, this.surface.getLinksBetweenNodeWidgets(this.surface.getSelectedWidgetsOfType('yb-node')));
+          }
+        },
+        hideLinks: function() {
+          var self = this;
+          this.surface.closeSelectionMenu();
+          if (this.surface.canBeginOperation()) {
+            var connectors = this.surface.getSelectedWidgetsOfType('yb-connector');
+            this.surface.getConnectorsBetweenNodeWidgets(this.surface.getSelectedWidgetsOfType('yb-node')).forEach(function(connector) {
+              if (connector.active) {
+                connectors.add(connector);
+              }
+            });
+            this.surface.beginOperation(this.surface.RemoveWidgetsOperation, connectors);
+          }
+        },
+        hideSelected: function() {
+          this.surface.closeSelectionMenu();
+          if (this.surface.canBeginOperation()) {
+            this.surface.beginOperation(this.surface.RemoveWidgetsOperation, this.surface.getSelectedWidgetsTopLevel());
+          }
+        },
+        deleteSelected: function() {
+          this.surface.closeSelectionMenu();
+          if (this.surface.canBeginOperation()) {
+            this.surface.beginOperation(this.surface.RemoveWidgetsOperation, this.surface.getSelectedWidgetsTopLevel(), {removeRepresented: true});
+          }
+        },
+      });
+    })();
+  </script>
+</dom-module>
+
+<script>
+  window.Yarnball = window.Yarnball || {};
+  
+  window.Yarnball._SurfaceBackgroundMenu = {
+    ready: function() {
+      // Create background menu
+      var backgroundMenu = document.createElement('yb-surface-background-menu');
+      backgroundMenu.surface = this;
+      this.backgroundMenu = backgroundMenu;
+      this.appendChild(backgroundMenu);
+      
+      this.$.background.addEventListener('mousedown', this.onBackgroundMousedown.bind(this));
+    },
+    onBackgroundMousedown: function(event) {
+      this.closeBackgroundMenu();
+      this.closeSelectionMenu();
+      
+      if (event.button === 2) {
+        var mouseEvent = this.translateMouseEvent(event);
+        this.lastBackgroundMenuPosition = mouseEvent.positionView;
+        var surfaceRect = this.getBoundingClientRect();
+        this.openBackgroundMenu({
+          x: event.pageX - surfaceRect.left,
+          y: event.pageY - surfaceRect.top,
+        });
+      }
+    },
+    openBackgroundMenu: function(position) {
+      this.closeSelectionMenu();
+      
+      this.backgroundMenu.style.left = position.x + 'px';
+      this.backgroundMenu.style.top  = position.y + 'px';
+      this.backgroundMenu.classList.remove('hidden');
+    },
+    closeBackgroundMenu: function() {
+      this.backgroundMenu.classList.add('hidden');
+    },
+  }
+  
+  window.Yarnball._SurfaceSelectionMenu = {
+    ready: function() {
+      // Create selection menu
+      var selectionMenu = document.createElement('yb-surface-selection-menu');
+      selectionMenu.surface = this;
+      this.selectionMenu = selectionMenu;
+      this.appendChild(selectionMenu);
+    },
+    listeners: {
+      contextmenu: 'contextmenu',
+      contextMenu: 'onContextMenu',
+    },
+    contextmenu: function(event) {
+      event.preventDefault();
+      return false;
+    },
+    onContextMenu: function(event) {
+      if (!this.hasOperation()) {
+        this.openSelectionMenu(event.detail);
+      }
+    },
+    openSelectionMenu: function(event) {
+      this.closeBackgroundMenu();
+      
+      var surfaceRect = this.getBoundingClientRect();
+      this.selectionMenu.style.left = (event.pageX - surfaceRect.left) + 'px';
+      this.selectionMenu.style.top  = (event.pageY - surfaceRect.top)  + 'px';
+      this.selectionMenu.classList.remove('hidden');
+    },
+    closeSelectionMenu: function() {
+      this.selectionMenu.classList.add('hidden');
+    },
+  }
+</script>

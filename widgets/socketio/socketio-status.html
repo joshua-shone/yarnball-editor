@@ -1,0 +1,102 @@
+<link rel="import" href="../../../polymer/polymer.html">
+<link rel="import" href="../../../paper-spinner/paper-spinner-lite.html">
+
+<link rel="import" href="socketio-status-styles.html">
+
+<dom-module id="yb-socketio-status">
+
+  <style include="socketio-status-styles"></style>
+
+  <template>
+    <img class="socketio-logo" src="socketio.svg" />
+    <div class="container">
+      <div class="status-container">
+        <div id="statusLed"></div>
+        <div id="statusText"></div>
+      </div>
+      <div class="reconnect-container">
+        <paper-spinner-lite id="reconnectSpinner" active></paper-spinner-lite>
+        <div id="reconnectText"></div>
+      </div>
+    </div>
+  </template>
+
+  <script>
+    (function() {
+      'use strict';
+      
+      Polymer({
+        is: 'yb-socketio-status',
+        ready: function() {
+          this.statusLed     = this.$.statusLed;
+          this.statusText    = this.$.statusText;
+          this.reconnectText = this.$.reconnectText;
+        },
+        getParentWebSocketIO: function() {
+          var parent = this.parentNode;
+          while (parent) {
+            if (parent.tagName === "yb-web-socketio".toUpperCase()) {
+              return parent;
+            }
+            parent = parent.parentNode;
+          }
+          return null;
+        },
+        attached: function() {
+          var self = this;
+          var parentWebSocketIO = self.getParentWebSocketIO();
+          if (parentWebSocketIO) {
+            parentWebSocketIO.onInit(function() {
+              self.setSocketio(parentWebSocketIO._socketio);
+            });
+          }
+        },
+        setSocketio: function(socketio) {
+          var self = this;
+          
+          self.socketio = socketio;
+          
+          if (socketio) {
+            self.classList.toggle('connected', socketio.connected);
+            if (socketio.connected) {
+              self.statusText.textContent = 'connected';
+            } else {
+              self.statusText.textContent = 'disconnected';
+            }
+            
+            socketio.on('connect', function() {
+              self.classList.add('connected');
+              self.classList.remove('disconnected');
+              self.classList.remove('reconnecting');
+              self.classList.remove('connect-timeout');
+              self.statusText.textContent = 'connected';
+            });
+            socketio.on('disconnect', function() {
+              self.classList.remove('connected');
+              self.classList.add('disconnected');
+              self.classList.remove('reconnecting');
+              self.statusText.textContent = 'disconnected';
+            });
+            
+            socketio.on('reconnecting', function(attemptNumber) {
+              self.classList.add('reconnecting');
+              self.classList.remove('connect-timeout');
+              self.reconnectText.textContent = 'reconnecting... #' + attemptNumber;
+            });
+            
+            socketio.on('reconnect_failed', function() {
+              self.classList.add('reconnect-failed');
+              self.reconnectText.textContent = 'reconnect failed';
+            });
+            
+            socketio.on('connect_timeout', function() {
+              self.classList.add('connect-timeout');
+              self.statusText.textContent = 'connect timeout';
+            });
+          }
+        },
+      });
+    })();
+  </script>
+
+</dom-module>

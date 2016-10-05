@@ -1,0 +1,113 @@
+<dom-module id="connector-styles">
+<template>
+<style>
+:host {
+  pointer-events: none; }
+  :host svg {
+    width: 100%;
+    height: 100%;
+    pointer-events: none; }
+    :host svg .connector-path {
+      fill: none;
+      stroke: #5792da;
+      stroke-width: 40px;
+      stroke-linecap: butt;
+      pointer-events: stroke; }
+    :host svg .connector-path:hover {
+      stroke: #86ABD8; }
+    :host svg #highlightPath {
+      display: none; }
+    :host svg #pathFromVia,
+    :host svg #pathViaTo {
+      stroke: #FFE9B8; }
+
+:host.show-handles .widget-handle {
+  cursor: pointer; }
+
+:host.show-handles .widget-handle.arrow {
+  pointer-events: fill;
+  stroke: none; }
+
+:host.show-handles #handleFrom {
+  stroke: #4EADE6; }
+
+:host.show-handles #handleVia {
+  stroke: #3F90C1; }
+
+:host.show-handles #handleTo {
+  stroke: #226E9C; }
+
+:host.show-handles #arrowFrom {
+  fill: #4EADE6; }
+
+:host.show-handles #arrowVia {
+  fill: #3F90C1; }
+
+:host.highlight-only svg #highlightPath {
+  display: block;
+  pointer-events: none; }
+
+:host.highlight-only svg #pathFromVia,
+:host.highlight-only svg #pathViaTo {
+  display: none; }
+
+:host.show-handles.hover svg #handleFrom {
+  stroke: #66BAEC; }
+
+:host.show-handles.hover svg #handleVia {
+  stroke: #56A1CE; }
+
+:host.show-handles.hover svg #handleTo {
+  stroke: #2C79A9; }
+
+:host.show-handles.hover svg #arrowFrom {
+  fill: #66BAEC; }
+
+:host.show-handles.hover svg #arrowVia {
+  fill: #56A1CE; }
+
+:host.show-handles.hover-from svg #handleFrom,
+:host.show-handles.hover-from.selected svg #handleFrom {
+  stroke: #FFE9B8; }
+
+:host.show-handles.hover-from svg #arrowFrom,
+:host.show-handles.hover-from.selected svg #arrowFrom {
+  fill: #FFE9B8; }
+
+:host.show-handles.hover-via svg #handleVia,
+:host.show-handles.hover-via.selected svg #handleVia {
+  stroke: #FFE9B8; }
+
+:host.show-handles.hover-via svg #arrowVia,
+:host.show-handles.hover-via.selected svg #arrowVia {
+  fill: #FFE9B8; }
+
+:host.show-handles.hover-to svg #handleTo,
+:host.show-handles.hover-to.selected svg #handleTo {
+  stroke: #FFE9B8; }
+
+:host.show-handles.hover-to svg #arrowTo,
+:host.show-handles.hover-to.selected svg #arrowTo {
+  fill: #FFE9B8; }
+
+:host.show-handles.selected svg .connector-path {
+  stroke: #FFCB6C; }
+
+:host.show-handles.selected svg #handleFrom {
+  stroke: #FFCB6C; }
+
+:host.show-handles.selected svg #handleVia {
+  stroke: #FFB938; }
+
+:host.show-handles.selected svg #handleTo {
+  stroke: #FFA500; }
+
+:host.show-handles.selected svg #arrowFrom {
+  fill: #FFCB6C; }
+
+:host.show-handles.selected svg #arrowVia {
+  fill: #FFB938; }
+
+</style>
+</template>
+</dom-module>

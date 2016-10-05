@@ -1,0 +1,50 @@
+<link rel="import" href="../../../polymer/polymer.html">
+
+<link rel="import" href="../widget.html">
+
+<link rel="import" href="list-factory-styles.html">
+
+<link rel="import" href="../list/list.html">
+
+<dom-module id="yb-list-factory">
+
+  <style include="list-factory-styles"></style>
+
+  <template>
+    <img src="list-icon.svg" />
+    <label>List</label>
+  </template>
+  
+  <script>
+    (function() {
+      Polymer({
+        is: 'yb-list-factory',
+        behaviors: [WidgetBehavior],
+        ready: function() {
+          this.widgetHandle = this;
+        },
+        listeners: {
+          mousedown: 'mousedown',
+        },
+        mousedown: function(event) {
+          var self = this;
+          if (event.button === 0) {
+            self.fire('selected', {
+              widget: self,
+              mouseEvent: event,
+            });
+            function windowMousemove(windowEvent) {
+              self.fire('dragStart', event);
+              window.removeEventListener('mousemove', windowMousemove);
+            }
+            window.addEventListener('mousemove', windowMousemove);
+          }
+        },
+        create: function() {
+          return document.createElement('yb-list');
+        },
+      });
+    })();
+  </script>
+
+</dom-module>

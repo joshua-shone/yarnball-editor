@@ -1,0 +1,50 @@
+<link rel="import" href="../../../polymer/polymer.html">
+
+<link rel="import" href="../widget.html">
+
+<link rel="import" href="set-factory-styles.html">
+
+<link rel="import" href="../set/set.html">
+
+<dom-module id="yb-set-factory">
+
+  <style include="set-factory-styles"></style>
+
+  <template>
+    <img src="set-icon.svg" />
+    <label>Set</label>
+  </template>
+  
+  <script>
+    (function() {
+      Polymer({
+        is: 'yb-set-factory',
+        behaviors: [WidgetBehavior],
+        ready: function() {
+          this.widgetHandle = this;
+        },
+        listeners: {
+          mousedown: 'mousedown',
+        },
+        mousedown: function(event) {
+          var self = this;
+          if (event.button === 0) {
+            self.fire('selected', {
+              widget: self,
+              mouseEvent: event,
+            });
+            function windowMousemove(windowEvent) {
+              self.fire('dragStart', event);
+              window.removeEventListener('mousemove', windowMousemove);
+            }
+            window.addEventListener('mousemove', windowMousemove);
+          }
+        },
+        create: function() {
+          return document.createElement('yb-set');
+        },
+      });
+    })();
+  </script>
+
+</dom-module>

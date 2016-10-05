@@ -1,0 +1,116 @@
+<dom-module id="socketio-status-styles">
+  <template>
+    <style>
+      :host {
+        background-color: #fff;
+        border: 1px solid #ddd;
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        padding: 5px;
+      }
+      
+      :host .socketio-logo {
+        width: 32px;
+        height: 32px;
+        margin: 4px;
+      }
+      
+      :host .container {
+        display: flex;
+        flex-direction: column;
+      }
+      
+      :host .status-container {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+      }
+      :host .status-container #statusLed {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 5px;
+        background-color: #ddd;
+        margin: 4px;
+      }
+      
+      :host .reconnect-container {
+        display: none;
+        flex-direction: row;
+        align-items: center;
+      }
+      :host .reconnect-container #reconnectSpinner {
+        width: 16px;
+        height: 16px;
+        margin-left: 4px;
+      }
+      :host .reconnect-container #reconnectText {
+        margin: 4px;
+        font-size: 12px;
+        color: #aaa;
+      }
+
+      :host.connected {
+        animation: 1s flash-connected;
+      }
+      :host.connected .status-container #statusLed {
+        background-color: green;
+      }
+
+      @keyframes flash-connected {
+        from {
+          background-color: green;
+        }
+        to {
+          background-color: #fff;
+        }
+      }
+
+      :host.disconnected {
+        animation: 1s flash-disconnected;
+      }
+      :host.disconnected .status-container #statusLed {
+        background-color: #FF9797;
+      }
+
+      @keyframes flash-disconnected {
+        from {
+          background-color: #FF9797;
+        }
+        to {
+          background-color: #fff;
+        }
+      }
+
+      :host.reconnecting {
+        animation: 1s flash-reconnecting;
+      }
+      :host.reconnecting .reconnect-container {
+        display: flex;
+      }
+
+      @keyframes flash-reconnecting {
+        from {
+          background-color: orange;
+        }
+        to {
+          background-color: #fff;
+        }
+      }
+
+      @keyframes flash-timeout {
+        from {
+          background-color: #FF9797;
+        }
+        to {
+          background-color: #fff;
+        }
+      }
+
+      :host.connect-timeout {
+        animation: 1s flash-timeout;
+      }
+    </style>
+  </template>
+</dom-module>

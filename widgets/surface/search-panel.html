@@ -1,0 +1,96 @@
+<link rel="import" href="../../../polymer/polymer.html">
+
+<link rel="import" href="../../../paper-button/paper-button.html">
+
+<link rel="import" href="panel.html">
+
+<link rel="import" href="../all-nodes/all-nodes.html">
+<link rel="import" href="../../../iron-icons/iron-icons.html">
+
+<dom-module id="yb-surface-search-panel">
+  <style include="surface-panel-style"></style>
+  <template>
+    <paper-button class="edge-button panel-handle" on-tap="handleClicked">
+      <iron-icon icon="icons:search" item-icon></iron-icon>
+    </paper-button>
+    <yb-all-nodes id="allNodesList" on-search-query-changed="queryChanged"></yb-all-nodes>
+  </template>
+  <style>
+    :host {
+      left: 0;
+      bottom: 5px;
+      width: 250px;
+    }
+    :host .panel-handle {
+      left: 100%;
+      border-top-left-radius:    0;
+      border-bottom-left-radius: 0;
+    }
+    :host.hidden {
+      left: -251px;
+    }
+  </style>
+  <script>
+    (function() {
+      Polymer({
+        is: 'yb-surface-search-panel',
+        ready: function() {
+          this.classList.add('hidden');
+        },
+        handleClicked: function() {
+          if (this.classList.contains('hidden')) {
+            this.classList.remove('hidden');
+            this.$.allNodesList.$.searchTextbox.focus();
+            this.$.allNodesList.$.searchTextbox.select();
+          } else {
+            this.classList.add('hidden');
+          }
+        },
+        queryChanged: function(event) {
+          var self = this;
+          var query = event.detail;
+          var matchingNodeWidgets = Array.from(self.surface.getWidgetsOfType('yb-node')).filter(function(nodeWidget) {
+            return query && nodeWidget.name && nodeWidget.name.toLowerCase().includes(query.toLowerCase()) && !self.contains(nodeWidget);
+          });
+          self.surface.selectWidgets(matchingNodeWidgets);
+        },
+      });
+    })();
+  </script>
+</dom-module>
+
+<script>
+  window.Yarnball = window.Yarnball || {};
+  
+  window.Yarnball._SurfaceSearchPanel = {
+    ready: function() {
+      var searchPanel = document.createElement('yb-surface-search-panel');
+      searchPanel.surface = this;
+      this.searchPanel = searchPanel;
+      this.appendChild(searchPanel);
+      
+      this.addOwnKeyBinding('ctrl+f', 'handleKey_CtrlF');
+      this.addOwnKeyBinding('f1',     'handleKey_F1');
+    },
+    toggleSearchPanel: function() {
+      if (document.activeElement !== this.searchPanel.$.allNodesList.$.searchTextbox) {
+        this.searchPanel.classList.remove('hidden');
+        this.searchPanel.$.allNodesList.$.searchTextbox.focus();
+        this.searchPanel.$.allNodesList.$.searchTextbox.select();
+      } else {
+        this.searchPanel.classList.add('hidden');
+        this.focus();
+      }
+    },
+    handleKey_CtrlF: function(event) {
+      event.preventDefault();
+      this.toggleSearchPanel();
+      return false;
+    },
+    handleKey_F1: function(event) {
+      event.preventDefault();
+      this.toggleSearchPanel();
+      return false;
+    },
+  }
+</script>

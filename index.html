@@ -1,0 +1,39 @@
+<!doctype html>
+<html>
+
+  <head>
+
+    <meta charset="utf-8">
+    
+    <title>Yarnball</title>
+    
+    <meta name="viewport" content="width=device-width, user-scalable=no">
+    
+    <script src="/bower_components/requirejs/require.js"></script>
+    
+    <!-- Polyfills -->
+    <script src="/bower_components/webcomponentsjs/webcomponents-lite.min.js"></script>
+    <script src="/bower_components/web-animations-js/web-animations.min.js"></script>
+    
+    <link rel="import" href="widgets/surface/surface.html">
+    <link rel="import" href="widgets/web/web.html">
+    
+    <style>
+      yb-surface {
+        position: absolute;
+        left:   0;
+        top:    0;
+        right:  0;
+        bottom: 0;
+      }
+    </style>
+    
+  </head>
+  
+  <body>
+    <yb-web>
+      <yb-surface node="2b3d67e4119e97849aa394beec11ec83"></yb-surface>
+    </yb-web>
+  </body>
+
+</html>

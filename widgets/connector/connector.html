@@ -1,0 +1,267 @@
+<link rel="import" href="../../../polymer/polymer.html">
+
+<link rel="import" href="../widget.html">
+
+<link rel="import" href="connector-styles.html">
+
+<dom-module id="yb-connector">
+  <style include="connector-styles"></style>
+  <template>
+    <svg id="svg">
+      <path id="pathFromVia" class="connector-path yb-connector"></path>
+      <path id="pathViaTo"   class="connector-path yb-connector"></path>
+      
+      <path id="handleFrom" class="widget-handle connector-path yb-connector"></path>
+      <path id="handleVia"  class="widget-handle connector-path yb-connector"></path>
+      <path id="handleTo"   class="widget-handle connector-path yb-connector"></path>
+      
+      <path id="arrowFrom" class="widget-handle arrow yb-connector" d="M -0.5,-20 L 20,0 L -0.5,20 z" />
+      <path id="arrowVia"  class="widget-handle arrow yb-connector" d="M -0.5,-20 L 20,0 L -0.5,20 z" />
+      
+      <path id="highlightPath" class="connector-path yb-connector"></path>
+    </svg>
+  </template>
+
+  <script>
+    (function() {
+      'use strict';
+      
+      Polymer({
+        is: 'yb-connector',
+        behaviors: [WidgetBehavior],
+        properties: {
+          fromPos: { type: Object, value: null },
+          viaPos:  { type: Object, value: null },
+          toPos:   { type: Object, value: null },
+          showHandles: {
+            type: Boolean,
+            value: true,
+            observer: 'showHandlesChanged',
+          },
+          highlightOnly: {
+            type: Boolean,
+            value: false,
+            observer: 'highlightOnlyChanged',
+          },
+        },
+        created: function() {
+          var self = this;
+          require(['yarnball/core/node'], function(Node) {
+            self.Node = Node;
+          });
+        },
+        ready: function() {
+          
+          var self = this;
+        
+          self.highlightPath = self.$.highlightPath;
+          
+          self.pathFromVia = self.$.pathFromVia;
+          self.pathViaTo   = self.$.pathViaTo;
+          
+          self.classList.toggle('show-handles', self.showHandles);
+        
+          self.handleFrom = self.$.handleFrom;
+          self.handleVia  = self.$.handleVia;
+          self.handleTo   = self.$.handleTo;
+          
+          self.arrowFrom = self.$.arrowFrom;
+          self.arrowVia  = self.$.arrowVia;
+          
+          function hoverFrom(enable) {
+            self.classList.toggle('hover',      enable);
+            self.classList.toggle('hover-from', enable);
+          }
+          
+          self.handleFrom.addEventListener('mouseover', function(event) { hoverFrom(true);  });
+          self.handleFrom.addEventListener('mouseout',  function(event) { hoverFrom(false); });
+          self.arrowFrom.addEventListener('mouseover',  function(event) { hoverFrom(true);  });
+          self.arrowFrom.addEventListener('mouseout',  function(event)  { hoverFrom(false); });
+          
+          function hoverVia(enable) {
+            self.classList.toggle('hover',     enable);
+            self.classList.toggle('hover-via', enable);
+          }
+          
+          self.handleVia.addEventListener('mouseover', function(event) { hoverVia(true);  });
+          self.handleVia.addEventListener('mouseout',  function(event) { hoverVia(false); });
+          self.arrowVia.addEventListener('mouseover',  function(event) { hoverVia(true);  });
+          self.arrowVia.addEventListener('mouseout',  function(event)  { hoverVia(false); });
+          
+          function hoverTo(enable) {
+            self.classList.toggle('hover',     enable);
+            self.classList.toggle('hover-to', enable);
+          }
+          
+          self.handleTo.addEventListener('mouseover', function(event) { hoverTo(true);  });
+          self.handleTo.addEventListener('mouseout',  function(event) { hoverTo(false); });
+        },
+        link: function() {
+          if (this.fromWidget &&
+              this.viaWidget &&
+              this.toWidget) {
+            
+            return {
+              from: this.Node.fromHex(this.fromWidget.nodeId),
+              via:  this.Node.fromHex(this.viaWidget.nodeId),
+              to:   this.Node.fromHex(this.toWidget.nodeId),
+            }
+          } else {
+            return null;
+          }
+        },
+        observers: [
+          'updatePositions(fromPos, viaPos, toPos)'
+        ],
+        showHandlesChanged: function(showHandles) {
+          this.classList.toggle('show-handles', showHandles);
+        },
+        highlightOnlyChanged: function(highlightOnly) {
+          this.classList.toggle('highlight-only', highlightOnly);
+        },
+        updatePositions: function(fromPos, viaPos, toPos) {
+          if (fromPos && viaPos) {
+            this.highlightPath.setAttributeNS(null, 'd', this.makePathString());
+          }
+          
+          if (fromPos && viaPos) {
+            if (this.fromWidget && this.viaWidget) {
+              this.pathFromVia.setAttributeNS(null, 'd', this.pathStringForBezier(this.smoothBezierBetweenPoints(fromPos, viaPos)));
+            } else {
+              this.pathFromVia.setAttributeNS(null, 'd', this.pathStringBetweenPoints(fromPos, viaPos));
+            }
+          }
+          
+          if (viaPos && toPos) {
+            if (this.viaWidget && this.toWidget) {
+              this.pathViaTo.setAttributeNS(null, 'd', this.pathStringForBezier(this.smoothBezierBetweenPoints(viaPos, toPos)));
+            } else {
+              this.pathViaTo.setAttributeNS(null, 'd', this.pathStringBetweenPoints(viaPos, toPos));
+            }
+          }
+          
+          if (this.showHandles) {
+            if (fromPos && viaPos) {
+              var beziers = this.bisectBezier(this.smoothBezierBetweenPoints(fromPos, viaPos));
+              this.handleFrom.setAttributeNS(null, 'd', this.pathStringForBezier(beziers[0]));
+              var arrowAngle = this.angleBetweenPoints(beziers[0].control2, beziers[1].control1);
+              this.arrowFrom.setAttributeNS(null, 'transform', 'translate(' + beziers[0].end.x + ',' + beziers[0].end.y + ') rotate(' + arrowAngle + ')');
+            }
+            if (viaPos && toPos) {
+              var beziers = this.bisectBezier(this.smoothBezierBetweenPoints(viaPos, toPos));
+              this.handleTo.setAttributeNS(null, 'd', this.pathStringForBezier(beziers[1]));
+              var arrowAngle = this.angleBetweenPoints(beziers[0].control2, beziers[1].control1);
+              this.arrowVia.setAttributeNS(null, 'transform', 'translate(' + beziers[0].end.x + ',' + beziers[0].end.y + ') rotate(' + arrowAngle + ')');
+            }
+            if (fromPos && viaPos && toPos) {
+              var fromViaBeziers = this.bisectBezier(this.smoothBezierBetweenPoints(fromPos, viaPos));
+              var viaToBeziers   = this.bisectBezier(this.smoothBezierBetweenPoints(viaPos, toPos));
+              this.handleVia.setAttributeNS(null, 'd', this.pathStringForBezier(fromViaBeziers[1]) + this.pathStringForBezier(viaToBeziers[0]));
+            }
+          }
+        },
+        midpoint: function(a, b) {
+          return {
+            x: a.x + ((b.x - a.x) / 2),
+            y: a.y + ((b.y - a.y) / 2),
+          }
+        },
+        angleBetweenPoints: function(a, b) {
+          return Math.atan2(b.y - a.y, b.x - a.x) * (180.0 / Math.PI);
+        },
+        bisectBezier: function(points) {
+          var midpoint1 = this.midpoint(points.start, points.control1);
+          var midpoint2 = this.midpoint(points.control1, points.control2);
+          var midpoint3 = this.midpoint(points.control2, points.end);
+          
+          var midpointA1 = this.midpoint(midpoint1, midpoint2);
+          var midpointA2 = this.midpoint(midpoint2, midpoint3);
+          
+          var midpoint = this.midpoint(midpointA1, midpointA2);
+          
+          return [
+            {
+              start: points.start,
+              control1: midpoint1,
+              control2: midpointA1,
+              end: midpoint,
+            },
+            {
+              start: midpoint,
+              control1: midpointA2,
+              control2: midpoint3,
+              end: points.end,
+            }
+          ]
+        },
+        pathStringForBezier: function(points) {
+          return 'M' + points.start.x + ',' + points.start.y + ' ' +
+                 'C' + points.control1.x + ',' + points.control1.y + ' ' +
+                       points.control2.x + ',' + points.control2.y + ' ' +
+                       points.end.x + ',' + points.end.y;
+        },
+        pathStringBetweenPoints: function(a, b) {
+          return 'M' + a.x + ',' + a.y + ' ' +
+                 'L' + b.x + ',' + b.y;
+        },
+        smoothBezierBetweenPoints: function(a, b) {
+          var halfDistX = (b.x - a.x) / 2;
+          return {
+            start: a,
+            control1: {
+              x: a.x + halfDistX,
+              y: a.y,
+            },
+            control2: {
+              x: b.x - halfDistX,
+              y: b.y,
+            },
+            end: b
+          }
+        },
+        makePathString: function() {
+          if (this.fromPos !== null && this.viaPos !== null && this.toPos !== null) {
+            var fromViaBend = (this.viaPos.x - this.fromPos.x) / 2;
+            var viaToBend   = (this.toPos.x  - this.viaPos.x) / 2;
+            return 'M' + this.fromPos.x + ',' + this.fromPos.y + ' ' +
+                  'C ' + (this.fromPos.x + fromViaBend) + ',' + this.fromPos.y + ' ' +
+                  (this.viaPos.x - fromViaBend) + ',' + this.viaPos.y + ' ' +
+                  this.viaPos.x + ',' + this.viaPos.y + ' ' +
+                  (this.viaPos.x + viaToBend) + ',' + this.viaPos.y + ' ' +
+                  (this.toPos.x - viaToBend) + ',' + this.toPos.y + ' ' +
+                  this.toPos.x + ',' + this.toPos.y;
+          } else if (this.fromPos !== null && this.viaPos !== null) {
+            var fromViaBend = (this.viaPos.x - this.fromPos.x) / 2;
+            return 'M' + this.fromPos.x + ',' + this.fromPos.y + ' ' +
+                  'C ' + (this.fromPos.x + fromViaBend) + ',' + this.fromPos.y + ' ' +
+                  (this.viaPos.x - fromViaBend) + ',' + this.viaPos.y + ' ' +
+                  this.viaPos.x + ',' + this.viaPos.y;
+          } else {
+            return "";
+          }
+        },
+        highlight: function(options) {
+          var color    = ('color'    in options) ? options.color    : '#fff';
+          var reverse  = ('reverse'  in options) ? options.reverse  : false;
+          var duration = ('duration' in options) ? options.duration : 300;
+          var delay    = ('delay'    in options) ? options.delay    : 0;
+          var pathLength = this.highlightPath.getTotalLength();
+          var animation = this.highlightPath.animate(
+            [
+              {stroke: color, opacity: 1.0, strokeDasharray:  pathLength, strokeDashoffset: reverse ? 0           : pathLength},
+              {stroke: color, opacity: 0.5, strokeDasharray:  pathLength, strokeDashoffset: reverse ? 0           : 0         },
+              {stroke: color, opacity: 0.0, strokeDasharray:  pathLength, strokeDashoffset: reverse ? -pathLength : 0         },
+            ],
+            {
+              duration: duration,
+              fill: 'both',
+              delay: delay,
+            }
+          );
+          return animation;
+        },
+      });
+    })();
+  </script>
+
+</dom-module>

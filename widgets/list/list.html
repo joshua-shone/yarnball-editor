@@ -1,0 +1,244 @@
+<link rel="import" href="../../../polymer/polymer.html">
+
+<link rel="import" href="../widget.html">
+<link rel="import" href="../widget-styles.html">
+
+<link rel="import" href="list-styles.html">
+
+<link rel="import" href="../selector/selector.html">
+<link rel="import" href="../dragdrop-area/dragdrop-area.html">
+
+<dom-module id="yb-list">
+
+  <style include="widget-styles"></style>
+  <style include="list-styles"></style>
+
+  <template>
+    <div class="widget-handle"></div>
+    <div id="widgetBody" class="widget-body">
+      <div class="header">
+        <yb-selector id="nextNodeSelector" placeholder="next" node-id="{{next}}"> </yb-selector>
+      </div>
+      <yb-dragdrop-area id="listContent">
+      </yb-dragdrop-area>
+    </div>
+  </template>
+
+  <script>
+    (function() {
+      'use strict';
+      
+      Polymer({
+        is: 'yb-list',
+        behaviors: [WidgetBehavior],
+        properties: {
+          next: {
+            type: String,
+            notify: true,
+            observer: 'nextChanged',
+          },
+        },
+        created: function() {
+          this.dragdropAreas = new Set();
+          this.nodeWidgetMap = new Map();;
+        },
+        listeners: {
+          dragdropAreaAttached: 'dragdropAreaAttached',
+          dragdropAreaDetached: 'dragdropAreaDetached',
+        },
+        ready: function() {
+        
+          var self = this;
+          
+          self.listContent  = self.$.listContent;
+          
+          self.listContent.dropRequestHandler = function(widgets) {
+            if (!self.next) {
+              return [];
+            }
+            return Array.from(widgets).filter(function(widget) {
+            
+              // Must be a node widget
+              if (widget.widgetType !== 'yb-node') {
+                return false;
+              }
+              
+              // Must not already be in the list
+              if (self.nodeWidgetMap.has(self.Node.toMapKey(self.Node.fromHex(widget.nodeId)))) {
+                return false;
+              }
+              
+              return true;
+            });
+          }
+          
+          // Record widget drag start position
+          self.listContent.addEventListener('widgetDragStart', function(event) {
+            event.detail.widgets.forEach(function(nodeWidget) {
+              nodeWidget.dragdropStartCursorPageX = event.detail.mouseEvent.pageX;
+            });
+          });
+          
+          self.listContent.addEventListener('widgetDrag', function(event) {
+          
+            event.detail.widgets.forEach(function(nodeWidget) {
+              nodeWidget.style.transform = 'translateX(' + (event.detail.options.currentPosPage.x - nodeWidget.dragdropStartCursorPageX) + 'px)';
+            });
+          
+            var listContentRect = self.listContent.getBoundingClientRect();
+          
+            var widgetsDraggedOut = Array.from(event.detail.widgets).filter(function(nodeWidget) {
+              var distanceDragged = Math.abs(event.detail.options.currentPosPage.x - nodeWidget.dragdropStartCursorPageX);
+              return distanceDragged > (listContentRect.width / 2);
+            });
+            
+            if (widgetsDraggedOut.length > 0) {
+            
+              var nodeIds = widgetsDraggedOut.map(function(nodeWidget) {
+                return self.Node.fromHex(nodeWidget.nodeId);
+              });
+              var detachedWidgets = widgetsDraggedOut.map(function(nodeWidget) {
+                nodeWidget.style.transform = null;
+                nodeWidget.classList.remove('yb-list');
+                return self.detachNodeWidget(nodeWidget);
+              });
+              self.listContent.fire('widgetsDraggedOut', {
+                dragdropArea: self.listContent,
+                oldWidgets: widgetsDraggedOut,
+                detachedWidgets: detachedWidgets,
+              });
+              self.removeNodes(nodeIds);
+            }
+          });
+          
+          self.listContent.addEventListener('nodes-dropped', function(event) {
+            if (self.next) {
+              var nodeIds = [];
+              event.detail.forEach(function(nodeWidget) {
+                if (!self.nodeWidgetMap.has(self.Node.toMapKey(self.Node.fromHex(nodeWidget.nodeId)))) {
+                  self.attachNodeWidget(nodeWidget);
+                  nodeIds.push(self.Node.fromHex(nodeWidget.nodeId));
+                }
+              });
+              
+              var needsRefresh = !self.orderedSet._base;
+              
+              self.orderedSet.append(nodeIds);
+              
+              if (needsRefresh) {
+                self.web.onLinks(self.onLinks);
+                self.refreshList();
+              }
+            }
+          });
+          
+          self.listContent.addEventListener('widgetDragFinish', function(event) {
+            event.detail.forEach(function(nodeWidget) {
+              nodeWidget.style.transform = null;
+            });
+          });
+        },
+        onWebInit: function(web) {
+          var self = this;
+          require(['yarnball/core/node', 'yarnball/core/ordered_set'], function(Node, OrderedSet) {
+            self.Node = Node;
+            self.OrderedSet = OrderedSet;
+            self.onLinks = self.onLinks.bind(self);
+          });
+        },
+        detached: function() {
+          this.web.removeLinksListener(this.onLinks);
+        },
+        nextChanged: function(next) {
+          var self = this;
+          if (next) {
+            if (this.orderedSet) {
+              this.orderedSet._next = this.Node.fromHex(this.next);
+            } else {
+              this.orderedSet = this.OrderedSet(this.web, this.Node.fromHex(this.next));
+            }
+            if (this.orderedSet._base) {
+              self.refreshList();
+              self.web.onLinks(self.onLinks);
+            } else {
+              self.clearNodeWidgets();
+            }
+            self.listContent.set('enabled', true);
+          } else {
+            self.listContent.set('enabled', false);
+            self.web.removeLinksListener(self.onLinks);
+            self.clearNodeWidgets();
+          }
+        },
+        getOrderedSet: function() {
+          if (this.next) {
+            return this.OrderedSet(this.web, this.Node.fromHex(this.next));
+          } else {
+            return null;
+          }
+        },
+        onLinks: function(linksAdded, linksRemoved) {
+          this.refreshList();
+        },
+        dragdropAreaAttached: function(event) {
+          this.dragdropAreas.add(event.detail);
+        },
+        dragdropAreaDetached: function(event) {
+          this.dragdropAreas.delete(event.detail);
+        },
+        removeNodes: function(nodes) {
+          if (this.orderedSet) {
+            this.orderedSet.delete(nodes);
+          }
+        },
+        refreshList: function() {
+          var self = this;
+          
+          var nodes = this.orderedSet.get();
+          
+          // Remove node widgets not in the set
+          Array.from(self.nodeWidgetMap.entries()).forEach(function(entry) {
+            if (!nodes.has(self.Node.fromMapKey(entry[0]))) {
+              self.detachNodeWidget(entry[1]);
+            }
+          });
+          
+          // Re-order node widgets and add any new ones
+          nodes.forEach(function(node, index) {
+            var nodeIdKey = self.Node.toMapKey(node)
+            var nodeWidget = self.nodeWidgetMap.get(nodeIdKey);
+            if (!nodeWidget) {
+              nodeWidget = self.addNodeWidget(node);
+            }
+            nodeWidget.style.order = index;
+          });
+        },
+        addNodeWidget: function(nodeId) {
+          var nodeWidget = document.createElement('yb-node');
+          nodeWidget.nodeId = this.Node.toHex(nodeId);
+          Polymer.dom(this.listContent).appendChild(nodeWidget);
+          this.nodeWidgetMap.set(this.Node.toMapKey(nodeId), nodeWidget);
+          return nodeWidget;
+        },
+        attachNodeWidget: function(nodeWidget) {
+          nodeWidget.style.position = null;
+          nodeWidget.style.left = 0;
+          nodeWidget.style.top  = 0;
+          this.nodeWidgetMap.set(this.Node.toMapKey(this.Node.fromHex(nodeWidget.nodeId)), nodeWidget);
+          Polymer.dom(this.listContent).appendChild(nodeWidget);
+        },
+        detachNodeWidget: function(nodeWidget) {
+          this.nodeWidgetMap.delete(this.Node.toMapKey(this.Node.fromHex(nodeWidget.nodeId)));
+          return this.listContent.removeChild(nodeWidget);
+        },
+        clearNodeWidgets: function() {
+          var self = this;
+          Array.from(self.nodeWidgetMap.values()).forEach(function(nodeWidget) {
+            self.detachNodeWidget(nodeWidget);
+          });
+        },
+      });
+    })();
+  </script>
+
+</dom-module>

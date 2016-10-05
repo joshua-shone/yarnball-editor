@@ -1,0 +1,102 @@
+<script>
+  window.Yarnball = window.Yarnball || {};
+  
+  window.Yarnball.FullscreenBehavior = {
+    created: function() {
+      this._isFullscreen = false;
+    },
+    attached: function() {
+      this._handleFullscreenEvent       = this._handleFullscreenEvent.bind(this);
+      this._handleWebkitFullscreenEvent = this._handleWebkitFullscreenEvent.bind(this);
+      this._handleMozFullscreenEvent    = this._handleMozFullscreenEvent.bind(this);
+      this._handleMSFullscreenEvent     = this._handleMSFullscreenEvent.bind(this);
+      if (this.requestFullscreen) {
+        document.addEventListener('fullscreenchange',       this._handleFullscreenEvent);
+      } else if (this.webkitRequestFullscreen) {
+        document.addEventListener('webkitfullscreenchange', this._handleWebkitFullscreenEvent);
+      } else if (this.mozRequestFullScreen) {
+        document.addEventListener('mozfullscreenchange',    this._handleMozFullscreenEvent);
+      } else if (this.msRequestFullscreen) {
+        document.addEventListener('MSFullscreenChange',     this._handleMSFullscreenEvent);
+      }
+    },
+    detached: function() {
+      if (this.requestFullscreen) {
+        document.removeEventListener('fullscreenchange',       this._handleFullscreenEvent);
+      } else if (this.webkitRequestFullscreen) {
+        document.removeEventListener('webkitfullscreenchange', this._handleWebkitFullscreenEvent);
+      } else if (this.mozRequestFullScreen) {
+        document.removeEventListener('mozfullscreenchange',    this._handleMozFullscreenEvent);
+      } else if (this.msRequestFullscreen) {
+        document.removeEventListener('MSFullscreenChange',     this._handleMSFullscreenEvent);
+      }
+    },
+    _handleFullscreenEvent: function(event) {
+      this._isFullscreen = document.fullscreenEnabled && document.fullscreenElement === this;
+      this.classList.toggle('fullscreen', this._isFullscreen);
+    },
+    _handleWebkitFullscreenEvent: function(event) {
+      this._isFullscreen = document.webkitFullscreenEnabled && document.webkitFullscreenElement === this;
+      this.classList.toggle('fullscreen', this._isFullscreen);
+    },
+    _handleMozFullscreenEvent: function(event) {
+      this._isFullscreen = document.mozFullScreenEnabled && document.mozFullScreenElement === this;
+      this.classList.toggle('fullscreen', this._isFullscreen);
+    },
+    _handleMSFullscreenEvent: function(event) {
+      this._isFullscreen = document.msFullscreenEnabled && document.msFullscreenElement === this;
+      this.classList.toggle('fullscreen', this._isFullscreen);
+    },
+    isFullsccreen: function() {
+      return this._isFullscreen;
+    },
+    enterFullscreen: function(event) {
+      if (!this._isFullscreen) {
+        if (this.requestFullscreen) {
+          this.requestFullscreen();
+        } else if (this.msRequestFullscreen) {
+          this.msRequestFullscreen();
+        } else if (this.mozRequestFullScreen) {
+          this.mozRequestFullScreen();
+        } else if (this.webkitRequestFullscreen) {
+          this.webkitRequestFullscreen();
+        }
+      }
+    },
+    exitFullscreen: function() {
+      if (this._isFullscreen) {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+          document.webkitExitFullscreen();
+        } else if (document.mozCancelFullScreen) {
+          document.mozCancelFullScreen();
+        } else if (document.msExitFullscreen) {
+          document.msExitFullscreen();
+        }
+      }
+    },
+    toggleFullscreen: function(event) {
+      if (!this._isFullscreen) {
+        this.enterFullscreen(event);
+      } else {
+        this.exitFullscreen();
+      }
+    },
+  }
+</script>
+
+<dom-module id="fullscreen-style">
+  <template>
+    <style>
+      :host.fullscreen {
+        position: fixed;
+        left:   0;
+        top:    0;
+        right:  0;
+        bottom: 0;
+        margin: 0;
+      }
+    </style>
+  </template>
+</dom-module>

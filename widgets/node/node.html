@@ -1,0 +1,173 @@
+<link rel="import" href="../../../polymer/polymer.html">
+
+<link rel="import" href="../widget.html">
+<link rel="import" href="../widget-styles.html">
+
+<link rel="import" href="node-styles.html">
+
+<dom-module id="yb-node">
+  <style include="widget-styles"></style>
+  <style include="node-styles"></style>
+  <template>
+    <pre id="idElement">{{nodeId_withLinebreaks}}</pre>
+    <pre id="nameElement"></pre>
+    <input id="nameInput" type="text" on-blur="onBlur" on-keypress="onKeypress" on-input="onNameInput">
+  </template>
+
+  <script>
+    (function() {
+      Polymer({
+        is: 'yb-node',
+        behaviors: [WidgetBehavior],
+        properties: {
+          'nodeId': {
+            type: String,
+          },
+          'nodeId_withLinebreaks': {
+            type: String,
+            computed: 'getNodeId_withLinebreaks(nodeId)'
+          },
+        },
+        getNodeId_withLinebreaks: function() {
+          return this.nodeId.slice(0, 8) + '\n' +
+                 this.nodeId.slice(8, 8 + 8) + '\n' +
+                 this.nodeId.slice(8 + 8, 8 + 8 + 8) + '\n' +
+                 this.nodeId.slice(8 + 8 + 8);
+        },
+        created: function() {
+          this.dimensions = {
+            width:  null,
+            height: null,
+          }
+          
+          this.name = null;
+          
+          this.isEditing = false;
+          
+          this.connectorsFrom = new Set();
+          this.connectorsVia  = new Set();
+          this.connectorsTo   = new Set();
+        },
+        ready: function() {
+          var self = this;
+          
+          self.nameElement = this.$.nameElement;
+          self.nameInput   = this.$.nameInput;
+          
+          self.classList.add('widget-handle');
+          
+          self.getWeb().then(function(web) {
+            require(['yarnball/core/node'], function(Node) {
+            
+              self.id_ = Node.fromHex(self.nodeId);
+              if (web.hasName(self.id_)) {
+                self.updateName(web.getName(self.id_));
+              }
+              
+              web.onNames(function(namesAdded, namesRemoved) {
+                namesAdded.forEach(function(node) {
+                  if (Node.equal(node.id, self.id_)) {
+                    self.updateName(node.name);
+                  }
+                });
+                namesRemoved.forEach(function(node) {
+                  if (Node.equal(node, self.id_)) {
+                    self.updateName('');
+                  }
+                });
+              });
+            });
+          });
+        },
+        hasHandles: function() {
+          return true;
+        },
+        getHandles: function() {
+          return [this];
+        },
+        connectors: function() {
+          var connectors = new Set();
+          this.connectorsFrom.forEach(function(connector) { connectors.add(connector); });
+          this.connectorsVia.forEach(function(connector)  { connectors.add(connector); });
+          this.connectorsTo.forEach(function(connector)   { connectors.add(connector); });
+          return connectors;
+        },
+        updateDimensions: function() {
+          Polymer.dom.flush();
+          var rect = this.getBoundingClientRect();
+          if (this.dimensions.width  !== rect.width ||
+              this.dimensions.height !== rect.height) {
+            this.dimensions.width  = rect.width;
+            this.dimensions.height = rect.height;
+            this.fire('dimensionsChanged', this.dimensions);
+          }
+        },
+        updateName: function(name) {
+          if (this.name !== name) {
+            this.name = name;
+            this.nameElement.textContent = name;
+            if (this.nameInput.value !== name) {
+              this.nameInput.value = name;
+            }
+            this.classList.toggle('has-name', Boolean(name));
+            this.updateNameInputPosition();
+            this.updateDimensions();
+          }
+        },
+        updateNameInputPosition: function() {
+          if (this.name) {
+            this.nameInput.style.left = this.nameElement.offsetLeft + 'px';
+            this.nameInput.style.top  = this.nameElement.offsetTop  + 'px';
+            this.nameInput.style.width  = this.nameElement.clientWidth  + 'px';
+            this.nameInput.style.height = this.nameElement.clientHeight + 'px';
+            this.nameInput.style['margin-top']  = '0px';
+          } else {
+            this.nameInput.style.left = '50%';
+            this.nameInput.style.top  = '50%';
+            this.nameInput.style.width  = '10px';
+            this.nameInput.style.height = '30px';
+            this.nameInput.style['margin-top']  = '-15px';
+          }
+        },
+        startEditing: function() {
+          if (!this.isEditing) {
+            this.isEditing = true;
+            this.classList.add('editing-name');
+            this.updateNameInputPosition();
+            this.nameInput.select();
+          }
+        },
+        finishEditing: function() {
+          if (this.isEditing) {
+            this.isEditing = false;
+            this.classList.remove('editing-name');
+            this.fire('finishedEditing');
+          }
+        },
+        onBlur: function(event) {
+          this.finishEditing();
+        },
+        onNameInput: function(event) {
+          var self = this;
+          var newName = this.nameInput.value;
+          self.updateName(newName);
+          if (newName) {
+            if (self._web.getName(self.id_) !== newName) {
+              self._web.addNames([{id: self.id_, name: newName}]);
+            }
+          } else {
+            if (self._web.hasName(self.id_)) {
+              self._web.removeNames([self.id_]);
+            }
+          }
+        },
+        onKeypress: function(event) {
+          if (event.which === 13) {
+            this.finishEditing();
+          }
+        },
+      });
+    })();
+  </script>
+
+</dom-module>

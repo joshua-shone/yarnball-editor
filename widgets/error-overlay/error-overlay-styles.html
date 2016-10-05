@@ -1,0 +1,29 @@
+<dom-module id="error-overlay-styles">
+<template>
+<style>
+:host .error-overlay {
+  display: none; }
+
+:host.has-error-overlay .error-overlay {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(255, 255, 255, 0.85);
+  color: red;
+  padding: 20px; }
+  :host.has-error-overlay .error-overlay .error-icon {
+    margin-right: 10px;
+    min-width: 30px;
+    min-height: 30px; }
+  :host.has-error-overlay .error-overlay .error-message {
+    font-size: 25px; }
+
+</style>
+</template>
+</dom-module>

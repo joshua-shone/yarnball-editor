@@ -1,0 +1,25 @@
+{
+  "name": "yarnball-editor",
+  "version": "0.1.0",
+  "description": "Yarnball editor",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yarnball-dev/yarnball-editor.git"
+  },
+  "author": "Joshua Shone",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/yarnball-dev/yarnball-editor/issues"
+  },
+  "homepage": "https://github.com/yarnball-dev/yarnball-editor#readme",
+  "dependencies": {
+    "bower": "^1.7.9",
+    "express": "^4.14.0",
+    "yargs": "^5.0.0",
+    "yarnball": "^0.2.0"
+  }
+}

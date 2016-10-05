@@ -1,0 +1,56 @@
+<link rel="import" href="../../../polymer/polymer.html">
+
+<link rel="import" href="../widget.html">
+
+<link rel="import" href="node-factory-styles.html">
+
+<link rel="import" href="../node/node.html">
+
+<dom-module id="yb-node-factory">
+
+  <style include="node-factory-styles"></style>
+
+  <template>
+    <img src="node-icon.svg" />
+    <label>Node</label>
+  </template>
+  
+  <script>
+    (function() {
+      Polymer({
+        is: 'yb-node-factory',
+        behaviors: [WidgetBehavior],
+        ready: function() {
+          var self = this;
+          self.widgetHandle = self;
+          require(['yarnball/core/node'], function(Node) {
+            self.Node = Node;
+          });
+        },
+        listeners: {
+          mousedown: 'mousedown',
+        },
+        mousedown: function(event) {
+          var self = this;
+          if (event.button === 0) {
+            self.fire('selected', {
+              widget: self,
+              mouseEvent: event,
+            });
+            function windowMousemove(windowEvent) {
+              self.fire('dragStart', event);
+              window.removeEventListener('mousemove', windowMousemove);
+            }
+            window.addEventListener('mousemove', windowMousemove);
+          }
+        },
+        create: function() {
+          var nodeWidget = document.createElement('yb-node');
+          nodeWidget.set('nodeId', this.Node.makeHex());
+          return nodeWidget;
+        },
+      });
+    })();
+  </script>
+
+</dom-module>

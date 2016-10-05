@@ -1,0 +1,114 @@
+<dom-module id="surface-styles">
+  <template>
+    <style>
+      
+      :host {
+        display: block;
+        position: relative;
+        overflow: hidden;
+        background-color: #fff;
+        
+                user-select: none;
+           -moz-user-select: none;
+            -ms-user-select: none;
+         -khtml-user-select: none;
+        -webkit-user-select: none;
+      }
+      
+      :host /deep/ .edge-button {
+        display: flex;
+        justify-content: center;
+        align-items:     center;
+        background-color: #56a0f9;
+        color: #fff;
+        min-width: initial;
+        padding: 0;
+        margin: 0;
+      }
+      :host /deep/ .edge-button:hover {
+        background-color: #7CB8FF;
+      }
+      
+      :host #fullscreenButton {
+        position: absolute;
+        top:     8px;
+        right:   8px;
+        padding: 8px;
+        width:  80px;
+        height: 50px;
+        margin: 0;
+      }
+      :host #fullscreenButton iron-icon {
+        width:  40px;
+        height: 40px;
+      }
+        
+      :host #viewRoot {
+        position: absolute;
+        width:  100%;
+        height: 100%;
+      }
+      :host #background {
+        position: absolute;
+        left:   0;
+        top:    0;
+        right:  0;
+        bottom: 0;
+        margin: -10000px;
+        border: 1px solid red;
+      }
+          
+      :host #boxSelection {
+        display: block;
+        position: absolute;
+        background-color: #E2F4FF;
+        opacity: 0.5;
+        pointer-events: none;
+        z-index: 3;
+      }
+      :host #boxSelection.hidden {
+        display: none;
+      }
+      
+      :host yb-connector {
+        position: absolute;
+        left:   0;
+        top:    0;
+        right:  0;
+        bottom: 0;
+        z-index: 1;
+        margin: -10000px;
+      }
+      :host yb-connector.inactive /deep/ .connector-path {
+        pointer-events: none !important;
+      }
+        
+      :host yb-node {
+        margin: 0;
+        z-index: 2;
+      }
+      :host yb-node.dragging {
+        margin: 0;
+        z-index: 3;
+      }
+      
+      :host yb-set {
+        z-index: 2;
+        margin: 0;
+      }
+
+      :host.mouse-captured /deep/ * {
+        pointer-events: none !important;
+      }
+      :host.mouse-captured #background {
+        pointer-events: all !important;
+      }
+      :host.dragging-widgets /deep/ .dragdrop-area.drop-ready {
+        pointer-events: all !important;
+      }
+      :host.dragging-connectors yb-node {
+        pointer-events: all !important;
+      }
+    </style>
+  </template>
+</dom-module>

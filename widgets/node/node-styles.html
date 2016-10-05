@@ -1,0 +1,68 @@
+<link href='https://fonts.googleapis.com/css?family=Roboto+Mono' rel='stylesheet' type='text/css'>
+
+<dom-module id="node-styles">
+  <template>
+    <style>
+      :host {
+        display: flex;
+        padding: 4px;
+        margin: 4px;
+        min-height: 56px;
+        min-width: 56px;
+        position: relative;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+      }
+      
+      :host #idElement {
+        font-size: 12px;
+        font-family: "Roboto Mono", Courier, monospace;
+        color: #696969;
+        margin-top: 0;
+        margin-bottom: 0;
+      }
+      :host #nameElement {
+        display: none;
+      }
+      :host #nameInput {
+        display: none;
+      }
+
+      :host.has-name #idElement {
+        display: none;
+      }
+
+      :host.has-name #nameElement {
+        display: block;
+        font-family: 'Roboto', sans-serif;
+        font-size: 22px;
+        color: #333;
+        margin: 0;
+        overflow: hidden;
+      }
+
+      :host.editing-name {
+        outline: 1px solid blue;
+      }
+      :host.editing-name #idElement {
+        display: none;
+      }
+      :host.editing-name #nameElement {
+        opacity: 0.01;
+      }
+      :host.editing-name #nameInput {
+        display: block;
+        position: absolute;
+        left: 0px;
+        top: 0px;
+        border: none;
+        font-family: 'Roboto', sans-serif;
+        font-size: 22px;
+        color: #333;
+        background-color: transparent;
+        outline: none;
+      }
+    </style>
+  </template>
+</dom-module>

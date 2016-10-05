@@ -1,0 +1,44 @@
+<dom-module id="list-styles">
+<template>
+<style>
+:host {
+  display: flex;
+  pointer-events: none; }
+  :host > .widget-handle {
+    display: inline-block;
+    width: 50px;
+    height: 50px;
+    margin-right: 5px;
+    vertical-align: top; }
+  :host > .widget-body {
+    pointer-events: all;
+    display: inline-block;
+    padding: 0; }
+  :host .header {
+    min-height: 30px;
+    padding: 5px;
+    display: flex;
+    align-items: center; }
+    :host .header yb-selector {
+      flex-grow: 1;
+      align-self: stretch; }
+    :host .header yb-selector.is-empty {
+      border: 1px solid #ddd; }
+    :host .header .connector {
+      display: inline-block;
+      width: 20px;
+      height: 30px;
+      background-color: #5792da; }
+  :host #listContent {
+    display: flex;
+    flex-direction: column;
+    min-height: 50px; }
+    :host #listContent yb-node {
+      margin-top: 2px;
+      margin-bottom: 2px; }
+  :host #listContent.drag-ready {
+    min-height: 20px; }
+
+</style>
+</template>
+</dom-module>

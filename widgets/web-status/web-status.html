@@ -1,0 +1,40 @@
+<link rel="import" href="../../../polymer/polymer.html">
+
+<link rel="import" href="../web/web.html">
+<link rel="import" href="web-status-styles.html">
+
+<dom-module id="yb-web-status">
+
+  <style include="web-status-styles"></style>
+
+  <template>
+    <img class="node-logo" src="node.svg" />
+    <div id="nodesCount" class="status-count">N/A</div>
+    
+    <img class="link-logo" src="link.svg" />
+    <div id="linksCount" class="status-count">N/A</div>
+  </template>
+
+  <script>
+    (function() {
+      'use strict';
+      
+      Polymer({
+        is: 'yb-web-status',
+        behaviors: [WebConsumer],
+        ready: function() {
+          var self = this;
+          self.getWeb().then(function(web) {
+            self.$.nodesCount.textContent = web.getNodeCount();
+            self.$.linksCount.textContent = web.getLinkCount();
+            web.onLinks(function() {
+              self.$.nodesCount.textContent = web.getNodeCount();
+              self.$.linksCount.textContent = web.getLinkCount();
+            });
+          });
+        },
+      });
+    })();
+  </script>
+
+</dom-module>

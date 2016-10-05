@@ -1,0 +1,70 @@
+<link rel="import" href="../../../polymer/polymer.html">
+
+<script>
+  WebSource = {
+    properties: {
+      'is-yb-web': {
+        type: Boolean,
+        value: true,
+        reflectToAttribute: true,
+      }
+    },
+    created: function() {
+      var self = this;
+      self._webPromise = new Promise(function(resolve, reject) {
+        require(['yarnball/core/web'], function(Web) {
+          self._web = Web();
+          resolve(self._web);
+          self._webPromise = null;
+        });
+      });
+    },
+    getWeb: function() {
+      return this._webPromise || Promise.resolve(this._web);
+    },
+  }
+  
+  WebConsumer = {
+    created: function() {
+      var self = this;
+      self._web = null;
+      self._webPromise = new Promise(function(resolve, reject) {
+        self._webPromise_resolve = resolve;
+      });
+    },
+    getParentWebElement: function() {
+      return this.closest('[is-yb-web]');
+    },
+    attached: function() {
+      var self = this;
+      if (!self._web) {
+        var parentWebWebElement = self.getParentWebElement();
+        if (parentWebWebElement) {
+          parentWebWebElement.getWeb().then(function(web) {
+            self._web = web;
+            self._webPromise = null;
+            self._webPromise_resolve(web);
+            self._webPromise_resolve = null;
+          });
+        }
+      }
+    },
+    getWeb: function() {
+      return this._webPromise || Promise.resolve(this._web);
+    },
+  }
+</script>
+
+<dom-module id="yb-web">
+
+  <script>
+    (function() {
+      'use strict';
+      Polymer({
+        is: 'yb-web',
+        behaviors: [WebSource],
+      });
+    })();
+  </script>
+  
+</dom-module>

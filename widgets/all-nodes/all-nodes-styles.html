@@ -1,0 +1,36 @@
+<dom-module id="all-nodes-styles">
+<template>
+<style>
+:host {
+  padding: 4px;
+  display: flex;
+  flex-direction: column; }
+  :host #searchTextbox {
+    height: 30px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 20px;
+    margin-bottom: 10px; }
+  :host #widgetsContainer {
+    display: flex;
+    flex-direction: column; }
+    :host #widgetsContainer yb-node {
+      max-height: 26px;
+      margin-top: 2px;
+      margin-bottom: 2px;
+      transition: min-height 0.6s, max-height 0.6s, margin-top 0.6s, margin-bottom 0.6s, padding-top 0.6s, padding-bottom 0.6s;
+      opacity: 1; }
+    :host #widgetsContainer yb-node.hidden {
+      pointer-events: none;
+      opacity: 0;
+      min-height: 0;
+      max-height: 0;
+      margin-top: 0;
+      margin-bottom: 0;
+      padding-top: 0;
+      padding-bottom: 0;
+      border: 0; }
+
+</style>
+</template>
+</dom-module>

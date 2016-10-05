@@ -1,0 +1,112 @@
+<link rel="import" href="web/web.html">
+
+<script>
+  WidgetBehavior = [WebConsumer,
+  {
+    properties: {
+      type: {
+        type: String,
+        readOnly: true,
+      },
+      highlighted: {
+        type: Boolean,
+        value: false,
+        notify: true,
+        observer: '_highlightedChanged',
+      },
+    },
+    created: function() {
+      var self = this;
+      self.widgetType = self.tagName.toLowerCase();
+      self.widgets = new Set();
+      require(['yarnball/core/node'], function(Node) {
+        if (!self.widgetId) {
+          self.widgetId = Node();
+        }
+      });
+    },
+    ready: function() {
+      var self = this;
+      self.classList.add('widget');
+      self.getHandles().forEach(function(handle) {
+        handle.addEventListener('mousedown', function(event) {
+          self._widgetHandleMousedown(event);
+        });
+        handle.addEventListener('mouseup', function(event) {
+          self._widgetHandleMouseup(event);
+        });
+      });
+    },
+    attached: function() {
+      var self = this;
+    
+      self._parent = self.parentNode;
+      var event = new CustomEvent('widgetAttached', { detail: self, bubbles: true });
+      self._parent.dispatchEvent(event);
+    },
+    detached: function() {
+      var event = new CustomEvent('widgetDetached', { detail: this, bubbles: true });
+      this._parent.dispatchEvent(event);
+    },
+    listeners: {
+      widgetAttached: '_widgetAttached',
+      widgetDetached: '_widgetDetached',
+    },
+    _widgetAttached: function(event) {
+      this.widgets.add(event.detail);
+    },
+    _widgetDetached: function(event) {
+      this.widgets.delete(event.detail);
+    },
+    hasHandles: function() {
+      return this.getHandles().length > 0;
+    },
+    getHandles: function() {
+      var self = this;
+      return Array.from(self.getElementsByClassName('widget-handle')).filter(function(element) {
+        return !element.classList.contains('widget');
+      });
+    },
+    _highlightedChanged: function(value) {
+      this.classList.toggle('highlighted', value);
+    },
+    setSelected: function(selected) {
+      this.classList.toggle('selected', selected);
+    },
+    _widgetHandleMousedown: function(event) {
+      var self = this;
+      if (event.button === 0 || event.button === 2) {
+        self.fire('selected',  {
+          widget: self,
+          mouseEvent: event,
+        });
+        function windowMousemove(windowWvent) {
+          if (event.button === 0) {
+            self.fire('dragStart', event);
+          } else if (event.button === 2) {
+            self.fire('rightButtonDragStart', {
+              widget: self,
+              mouseEvent: event,
+            });
+          }
+          window.removeEventListener('mousemove', windowMousemove);
+        }
+        window.addEventListener('mousemove', windowMousemove);
+        function windowMouseup(event) {
+          window.removeEventListener('mousemove', windowMousemove);
+          window.removeEventListener('mouseup', windowMouseup);
+        }
+        window.addEventListener('mouseup', windowMouseup);
+      }
+    },
+    _widgetHandleMouseup: function(event) {
+      if (event.button === 2) {
+        this.fire('selected',    {
+          widget: this,
+          mouseEvent: event,
+        });
+        this.fire('contextMenu', event);
+      }
+    }
+  }];
+</script>

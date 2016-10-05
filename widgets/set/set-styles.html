@@ -1,0 +1,45 @@
+<dom-module id="set-styles">
+<template>
+<style>
+:host {
+  display: flex;
+  pointer-events: none; }
+  :host > .widget-handle {
+    display: inline-block;
+    width: 50px;
+    height: 50px;
+    margin-right: 5px;
+    vertical-align: top; }
+  :host .widget-body {
+    display: inline-block;
+    padding: 0; }
+  :host .header {
+    min-height: 30px;
+    padding: 5px;
+    display: flex;
+    align-items: center; }
+    :host .header yb-selector {
+      flex-grow: 1;
+      align-self: stretch; }
+    :host .header yb-selector.is-empty {
+      border: 1px solid #ddd;
+      min-width: 70px;
+      min-height: 40px; }
+    :host .header .connector {
+      display: inline-block;
+      width: 20px;
+      height: 30px;
+      background-color: #5792da; }
+  :host #setContent {
+    display: flex;
+    flex-direction: column;
+    min-height: 50px; }
+    :host #setContent yb-node {
+      margin-top: 2px;
+      margin-bottom: 2px; }
+  :host #setContent.drag-ready {
+    min-height: 20px; }
+
+</style>
+</template>
+</dom-module>

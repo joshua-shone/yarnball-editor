@@ -1,0 +1,327 @@
+<!-- <link rel="import" href="../../../polymer/polymer.html"> -->
+
+<link rel="import" href="../widget.html">
+<link rel="import" href="../widget-styles.html">
+
+<link rel="import" href="set-styles.html">
+
+<link rel="import" href="../selector/selector.html">
+<link rel="import" href="../dragdrop-area/dragdrop-area.html">
+
+<dom-module id="yb-set">
+
+  <style include="widget-styles"></style>
+  <style include="set-styles"></style>
+
+  <template>
+    <div id="widgetHandle" class="widget-handle"></div>
+    <div id="widgetBody" class="widget-body">
+      <div class="header">
+        <yb-selector id="fromSelector" placeholder="from" node-id="{{from}}"></yb-selector>
+        <span class="connector"></span>
+        <yb-selector id="viaSelector"  placeholder="via"  node-id="{{via}}"> </yb-selector>
+        <span class="connector"></span>
+        <yb-selector id="toSelector"   placeholder="to"   node-id="{{to}}">  </yb-selector>
+      </div>
+      <yb-dragdrop-area id="setContent" on-nodes-dropped="nodesDropped" drop-on-hover>
+      </yb-dragdrop-area>
+    </div>
+  </template>
+  
+  <script>
+    (function() {
+      Polymer({
+        is: 'yb-set',
+        behaviors: [WidgetBehavior],
+        properties: {
+          from: {
+            type: String,
+            notify: true,
+            observer: 'refreshSet',
+          },
+          via: {
+            type: String,
+            notify: true,
+            observer: 'refreshSet',
+          },
+          to: {
+            type: String,
+            notify: true,
+            observer: 'refreshSet',
+          },
+        },
+        created: function() {
+          this.widgets = new Set();
+          this.dragdropAreas = new Set();
+          this.nodeWidgetsInSet = new Map();
+        },
+        listeners: {
+          widgetAttached:  'widgetAttached',
+          widgetDetached:  'widgetDetached',
+          dragdropAreaAttached: 'dragdropAreaAttached',
+          dragdropAreaDetached: 'dragdropAreaDetached',
+        },
+        ready: function() {
+        
+          var self = this;
+          
+          self.widgetHandle = self.$.widgetHandle;
+          self.widgetBody   = self.$.widgetBody;
+          self.setContent   = self.$.setContent;
+          
+          self.getWeb().then(function(web) {
+            require(['yarnball/core/node'], function(Node) {
+              self.Node = Node;
+              self.refreshSet();
+              self.onLinks = self.onLinks.bind(self);
+              web.onLinks(self.onLinks);
+            });
+          });
+          
+          self.setContent.dropRequestHandler = function(widgets) {
+            if (!self.isFilterValid()) {
+              return [];
+            }
+            return Array.from(widgets).filter(function(widget) {
+              if (widget.widgetType !== 'yb-node') {
+                return false;
+              }
+              
+              return !Array.from(self.nodeWidgetsInSet.values()).some(function(existingNodeWidget) {
+                return existingNodeWidget.nodeId === widget.nodeId;
+              });
+            });
+          }
+          
+          self.setContent.addEventListener('widgetDragStart', function(event) {
+            event.detail.widgets.forEach(function(nodeWidget) {
+              nodeWidget.dragdropStartCursorPageX = event.detail.mouseEvent.pageX;
+            });
+          });
+          
+          self.setContent.addEventListener('widgetDrag', function(event) {
+          
+            var setContentRect = self.setContent.getBoundingClientRect();
+          
+            var widgetsDraggedOut = new Set(Array.from(event.detail.widgets).filter(function(nodeWidget) {
+              var distanceDragged = Math.abs(event.detail.options.currentPosPage.x - nodeWidget.dragdropStartCursorPageX);
+              return distanceDragged > (setContentRect.width / 2)
+            }));
+            
+            if (widgetsDraggedOut.size > 0) {
+            
+              var nodeIds = Array.from(widgetsDraggedOut).map(function(nodeWidget) {
+                return self.Node.fromHex(nodeWidget.nodeId);
+              });
+              var detachedWidgets = Array.from(widgetsDraggedOut).map(function(nodeWidget) {
+                nodeWidget.style.transform = null;
+                nodeWidget.classList.remove('yb-set');
+                self.nodeWidgetsInSet.delete(self.Node.toMapKey(self.Node.fromHex(nodeWidget.nodeId)));
+                self.widgets.delete(nodeWidget);
+                return Polymer.dom(self.setContent).removeChild(nodeWidget);
+              });
+              self.setContent.fire('widgetsDraggedOut', {
+                dragdropArea: self.setContent,
+                oldWidgets: widgetsDraggedOut,
+                detachedWidgets: detachedWidgets,
+              });
+              self.removeNodes(nodeIds);
+            }
+            
+            event.detail.widgets.forEach(function(nodeWidget) {
+              if (!widgetsDraggedOut.has(nodeWidget)) {
+                nodeWidget.style.transform = 'translateX(' + (event.detail.options.currentPosPage.x - nodeWidget.dragdropStartCursorPageX) + 'px)';
+              }
+            });
+          });
+          
+          self.setContent.addEventListener('widgetsDraggedIn', function(event) {
+            var nodeIds = [];
+            event.detail.widgets.forEach(function(nodeWidget) {
+              self.attachNodeWidget(nodeWidget);
+              nodeWidget.dragdropStartCursorPageX = event.detail.mouseEvent.pageX;
+              nodeIds.push(self.Node.fromHex(nodeWidget.nodeId));
+            });
+            self.addNodes(nodeIds);
+          });
+          
+          self.setContent.addEventListener('widgetDragFinish', function(event) {
+            event.detail.forEach(function(nodeWidget) {
+              nodeWidget.style.transform = null;
+//               nodeWidget.animate(
+//                 [
+//                   {transform: nodeWidget.style.transform},
+//                   {transform: 'translateX(0px)'},
+//                 ],
+//                 {
+//                   duration: 150,
+//                   easing: 'ease-out',
+//                 }
+//               ).finished.then(function() {
+//                 nodeWidget.style.transform = null;
+//               });
+            });
+          });
+        },
+        detached: function() {
+          if (this._web) {
+            this._web.removeLinksListener(this.onLinks);
+          }
+        },
+        onLinks: function(linksAdded, linksRemoved) {
+          this.updateSet(linksAdded, linksRemoved);
+        },
+        widgetAttached: function(event) {
+          this.widgets.add(event.detail);
+        },
+        widgetDetached: function(event) {
+          this.widgets.delete(event.detail);
+        },
+        dragdropAreaAttached: function(event) {
+          this.dragdropAreas.add(event.detail);
+        },
+        dragdropAreaDetached: function(event) {
+          this.dragdropAreas.delete(event.detail);
+        },
+        isFilterValid: function() {
+          return ((this.from ? 1:0) + (this.via ? 1:0) + (this.to ? 1:0)) === 2;
+        },
+        getFilter: function() {
+          return {
+            from: this.from ? this.Node.fromHex(this.from) : null,
+            via:  this.via  ? this.Node.fromHex(this.via)  : null,
+            to:   this.to   ? this.Node.fromHex(this.to)   : null,
+          }
+        },
+        filterLinks: function(links) {
+          
+          var self = this;
+        
+          if (!self.isFilterValid()) {
+            return [];
+          }
+          return links.filter(function(link) {
+            return (!self.from || self.Node.toHex(link.from) === self.from) &&
+                   (!self.via  || self.Node.toHex(link.via)  === self.via) &&
+                   (!self.to   || self.Node.toHex(link.to)   === self.to);
+          }).map(function(link) {
+            if (!self.from) return link.from;
+            if (!self.via)  return link.via;
+            if (!self.to)   return link.to;
+          });
+        },
+        refreshSet: function() {
+          var self = this;
+          
+          self.setContent.set('enabled', self.isFilterValid());
+          
+          var nodeIdKeys = new Set(self.filterLinks(self._web.getLinks()).map(function(nodeId) {
+            return self.Node.toMapKey(nodeId);
+          }));
+          self.nodeWidgetsInSet.forEach(function(nodeWidget, nodeIdKey) {
+            if (!nodeIdKeys.has(nodeIdKey)) {
+              self.removeNodeWidget(self.Node.fromMapKey(nodeIdKey));
+            }
+          });
+          nodeIdKeys.forEach(function(nodeIdKey) {
+            if (!self.nodeWidgetsInSet.has(nodeIdKey)) {
+              self.addNodeWidget(self.Node.fromMapKey(nodeIdKey));
+            }
+          });
+        },
+        updateSet: function(linksAdded, linksRemoved) {
+        
+          var self = this;
+          
+          self.filterLinks(linksAdded).forEach(function(nodeId) {
+            if (!self.nodeWidgetsInSet.has(self.Node.toMapKey(nodeId))) {
+              self.addNodeWidget(nodeId);
+            }
+          });
+          
+          self.filterLinks(linksRemoved).forEach(function(nodeId) {
+            self.removeNodeWidget(nodeId);
+          });
+        },
+        addNodes: function(nodeIds) {
+          var self = this;
+          if (self.isFilterValid()) {
+            var links = Array.from(nodeIds).map(function(nodeId) {
+              return {
+                from: self.from ? self.Node.fromHex(self.from) : nodeId,
+                via:  self.via  ? self.Node.fromHex(self.via)  : nodeId,
+                to:   self.to   ? self.Node.fromHex(self.to)   : nodeId,
+              }
+            });
+            self._web.setLinks(links, []);
+          }
+        },
+        removeNodes: function(nodeIds) {
+          var self = this;
+          if (self.isFilterValid()) {
+            var links = Array.from(nodeIds).map(function(nodeId) {
+              return {
+                from: self.from ? self.Node.fromHex(self.from) : nodeId,
+                via:  self.via  ? self.Node.fromHex(self.via)  : nodeId,
+                to:   self.to   ? self.Node.fromHex(self.to)   : nodeId,
+              }
+            });
+            self._web.setLinks([], links);
+          }
+        },
+        addNodeWidget: function(nodeId) {
+          var nodeWidget = document.createElement('yb-node');
+          nodeWidget.nodeId = this.Node.toHex(nodeId);
+          Polymer.dom(this.setContent).appendChild(nodeWidget);
+          this.nodeWidgetsInSet.set(this.Node.toMapKey(nodeId), nodeWidget);
+        },
+        attachNodeWidget: function(nodeWidget) {
+          nodeWidget.style.position = null;
+          nodeWidget.style.left = null;
+          nodeWidget.style.top  = null;
+          nodeWidget.style['z-index'] = null;
+          Polymer.dom(this.setContent).appendChild(nodeWidget);
+          this.nodeWidgetsInSet.set(this.Node.toMapKey(this.Node.fromHex(nodeWidget.nodeId)), nodeWidget);
+        },
+        removeNodeWidget: function(nodeId) {
+          var nodeWidget = this.nodeWidgetsInSet.get(this.Node.toMapKey(nodeId));
+          if (nodeWidget) {
+            this.widgets.delete(nodeWidget);
+            this.nodeWidgetsInSet.delete(this.Node.toMapKey(nodeId));
+            Polymer.dom(this.setContent).removeChild(nodeWidget);
+          }
+        },
+        nodesDropped: function(event) {
+          var self = this;
+          if (((self.from ? 1:0) + (self.via ? 1:0) + (self.to ? 1:0)) !== 2) {
+            return;
+          }
+          var nodeWidgets = event.detail;
+          var links = Array.from(nodeWidgets).map(function(nodeWidget) {
+            if (!self.from) {
+              return {
+                from: self.Node.fromHex(nodeWidget.nodeId),
+                via:  self.Node.fromHex(self.via),
+                to:   self.Node.fromHex(self.to),
+              }
+            } else if (!self.via) {
+              return {
+                from: self.Node.fromHex(self.from),
+                via:  self.Node.fromHex(nodeWidget.nodeId),
+                to:   self.Node.fromHex(self.to),
+              }
+            } else if (!self.to) {
+              return {
+                from: self.Node.fromHex(self.from),
+                via:  self.Node.fromHex(self.via),
+                to:   self.Node.fromHex(nodeWidget.nodeId),
+              }
+            }
+          });
+          self._web.setLinks(links, []);
+        },
+      });
+    })();
+  </script>
+
+</dom-module>

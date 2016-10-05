@@ -1,0 +1,57 @@
+<link rel="import" href="../../../polymer/polymer.html">
+
+<script>
+  Web_SocketIO_Behavior = {
+    properties: {
+      'is-yb-web': {
+        type: Boolean,
+        value: true,
+        reflectToAttribute: true,
+      }
+    },
+    created: function() {
+      var self = this;
+      self._socketio = null;
+      self._webPromise = new Promise(function(resolve, reject) {
+        self._webPromise_resolve = resolve;
+      });
+    },
+    setSocketio: function(socketio) {
+      var self = this;
+      self._socketio = socketio;
+      
+      require(['yarnball/core/web-socketio'], function(WebSocketIO) {
+        var web = WebSocketIO.Client(socketio);
+        
+        if (web.isSeeded()) {
+          self._web = web;
+          self._webPromise = null;
+          self._webPromise_resolve(web);
+        } else {
+          web.onSeed(function() {
+            self._web = web;
+            self._webPromise = null;
+            self._webPromise_resolve(web);
+          });
+        }
+      });
+    },
+    getWeb: function() {
+      return this._webPromise || Promise.resolve(this._web);
+    },
+  }
+</script>
+
+<dom-module id="yb-web-socketio">
+
+  <script>
+    (function() {
+      'use strict';
+      behaviors: [Web_SocketIO_Behavior],
+      Polymer({
+        is: 'yb-web-socketio',
+      });
+    })();
+  </script>
+  
+</dom-module>

@@ -1,0 +1,167 @@
+<link rel="import" href="../../../polymer/polymer.html">
+
+<dom-module id="yb-surface-empty-indicator">
+  <style>
+    :host {
+      display: block;
+      
+      position: absolute;
+      left:   0;
+      top:    0;
+      right:  0;
+      bottom: 0;
+      display: flex;
+      justify-content: center;
+      align-items:     center;
+      
+      opacity: 1;
+      transition: 0.7s opacity;
+      
+      pointer-events: none;
+    }
+    :host.hidden {
+      opacity: 0;
+    }
+    
+    :host .container {
+      border-radius: 4px;
+      padding: 5px;
+      
+      background-color: #282937;
+      font-family: 'Roboto', sans-serif;
+      font-size: 0.9em;
+      color: #fff;
+      text-align: center;
+    }
+    
+    :host .surface-icon {
+      width:  50px;
+      height: 50px;
+      margin: 5px;
+    }
+    
+    :host h1 {
+      font-size: 1.1em;
+      font-weight: bold;
+      color: #fff;
+      margin-bottom: 16px;
+    }
+    
+    :host hr {
+      border: none;
+      border-bottom: 1px solid #fff;
+      margin-bottom: 10px;
+    }
+    
+    :host .input-options-label {
+      margin-bottom: 5px;
+    }
+    
+    :host .input-options {
+      display: flex;
+      justify-content: center;
+      align-items:     center;
+      color: #fff;
+      margin-top:    15px;
+      margin-bottom: 5px;
+    }
+    :host .input-options-or {
+      background-color: #bbb;
+      color: #282937;
+      border-radius: 4px;
+      padding-left:  4px;
+      padding-right: 4px;
+      white-space: nowrap;
+    }
+    :host .input-option {
+      margin-left:  24px;
+      margin-right: 24px;
+      width: 130px;
+    }
+    :host .input-option label {
+      display: inline-block;
+      margin: 8px;
+    }
+    :host .input-combo {
+      display: flex;
+      justify-content: center;
+      align-items:     center;
+    }
+    
+    :host .input-combiner {
+      font-size: 1.5em;
+    }
+    
+    :host .key {
+      color: #fff;
+      border: 1px solid #fff;
+      border-radius: 4px;
+      padding: 5px;
+      margin: 7px;
+    }
+    
+    :host .mouse {
+      width:  50px;
+      height: 60px;
+    }
+  </style>
+  <template>
+    <div class="container">
+  
+      <img class="surface-icon" src="surface-icon.svg">
+      <h1>(empty surface)</h1>
+      
+      <hr>
+      
+      <div class="input-options-label">create a new node with:</div>
+      
+      <div class="input-options">
+        <span class="input-option">
+          <div class="input-combo">
+            <img class="mouse" src="double-click.svg">
+          </div>
+<!--           <label>double-click</label> -->
+        </span>
+        
+        <span class="input-options-or">-or-</span>
+        
+        <span class="input-option">
+          <div class="input-combo">
+            <span class="key">shift</span>
+            <span class="input-combiner">+</span>
+            <img class="mouse" src="left-click.svg">
+          </div>
+<!--           <label>shift-click</label> -->
+        </span>
+      </div>
+      
+    </div>
+  </template>
+  <script>
+    (function() {
+      Polymer({
+        is: 'yb-surface-empty-indicator',
+      });
+    })();
+  </script>
+</dom-module>
+
+<script>
+  window.Yarnball = window.Yarnball || {};
+  
+  window.Yarnball._Surface_EmptyIndicator = {
+    ready: function() {
+      var self = this;
+      
+      var emptyIndicator = document.createElement('yb-surface-empty-indicator');
+      self.appendChild(emptyIndicator);
+      
+      function update() {
+        emptyIndicator.classList.toggle('hidden', self.widgetsTopLevel.size > 0);
+      }
+      
+      self.addEventListener('widgetAttached', update.bind(self));
+      self.addEventListener('widgetDetached', update.bind(self));
+    },
+  }
+</script>
