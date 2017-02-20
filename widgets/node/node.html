@@ -57,7 +57,7 @@
           self.classList.add('widget-handle');
           
           self.getWeb().then(function(web) {
-            require(['yarnball/core/node'], function(Node) {
+            require(['yarnball/src/node'], function(Node) {
             
               self.id_ = Node.fromHex(self.nodeId);
               if (web.hasName(self.id_)) {

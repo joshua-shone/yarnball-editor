@@ -70,7 +70,7 @@
           self.setContent   = self.$.setContent;
           
           self.getWeb().then(function(web) {
-            require(['yarnball/core/node'], function(Node) {
+            require(['yarnball/src/node'], function(Node) {
               self.Node = Node;
               self.refreshSet();
               self.onLinks = self.onLinks.bind(self);

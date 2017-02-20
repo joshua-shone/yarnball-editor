@@ -12,7 +12,7 @@
     created: function() {
       var self = this;
       self._webPromise = new Promise(function(resolve, reject) {
-        require(['yarnball/core/web'], function(Web) {
+        require(['yarnball/src/web'], function(Web) {
           self._web = Web();
           resolve(self._web);
           self._webPromise = null;

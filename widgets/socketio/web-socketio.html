@@ -20,7 +20,7 @@
       var self = this;
       self._socketio = socketio;
       
-      require(['yarnball/core/web-socketio'], function(WebSocketIO) {
+      require(['yarnball/src/web-socketio'], function(WebSocketIO) {
         var web = WebSocketIO.Client(socketio);
         
         if (web.isSeeded()) {

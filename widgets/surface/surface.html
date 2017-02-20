@@ -92,7 +92,7 @@
           
           self.currentOperation = null;
           
-          require(['yarnball/core/node', 'yarnball/core/link', 'yarnball/core/batch', 'widgets/zindex-manager'], function(Node, Link, Batch, zindex_manager) {
+          require(['yarnball/src/node', 'yarnball/src/link', 'yarnball/src/batch', 'yarnball-editor/widgets/zindex-manager'], function(Node, Link, Batch, zindex_manager) {
             self.Node = Node;
             self.Link = Link;
             self.Batch = Batch;
@@ -115,17 +115,17 @@
           // Install operations
           require(
             [
-              'widgets/surface/operations/pan-operation',
-              'widgets/surface/operations/zoom-operation',
-              'widgets/surface/operations/selection-operation',
-              'widgets/surface/operations/box-selection-operation',
-              'widgets/surface/operations/drag-operation',
-              'widgets/surface/operations/new-widget-operation',
-              'widgets/surface/operations/remove-widgets-operation',
-              'widgets/surface/operations/new-connector-drag-operation',
-              'widgets/surface/operations/new-connectors-operation',
-              'widgets/surface/operations/clone-widgets-operation',
-              'widgets/surface/operations/rename-operation',
+              'yarnball-editor/widgets/surface/operations/pan-operation',
+              'yarnball-editor/widgets/surface/operations/zoom-operation',
+              'yarnball-editor/widgets/surface/operations/selection-operation',
+              'yarnball-editor/widgets/surface/operations/box-selection-operation',
+              'yarnball-editor/widgets/surface/operations/drag-operation',
+              'yarnball-editor/widgets/surface/operations/new-widget-operation',
+              'yarnball-editor/widgets/surface/operations/remove-widgets-operation',
+              'yarnball-editor/widgets/surface/operations/new-connector-drag-operation',
+              'yarnball-editor/widgets/surface/operations/new-connectors-operation',
+              'yarnball-editor/widgets/surface/operations/clone-widgets-operation',
+              'yarnball-editor/widgets/surface/operations/rename-operation',
             ],
             function() {
               var operations = Array.from(arguments);
@@ -146,7 +146,7 @@
           
           self.getWeb().then(function(web) {
           
-            require(['yarnball/core/node'/*, 'widgets/surface/surface-web'*/], function(Node/*, SurfaceWeb*/) {
+            require(['yarnball/src/node'/*, 'widgets/surface/surface-web'*/], function(Node/*, SurfaceWeb*/) {
             
 //               self.SurfaceWeb = SurfaceWeb;
               

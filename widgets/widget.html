@@ -19,7 +19,7 @@
       var self = this;
       self.widgetType = self.tagName.toLowerCase();
       self.widgets = new Set();
-      require(['yarnball/core/node'], function(Node) {
+      require(['yarnball/src/node'], function(Node) {
         if (!self.widgetId) {
           self.widgetId = Node();
         }

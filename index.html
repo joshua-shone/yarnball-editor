@@ -10,13 +10,22 @@
     <meta name="viewport" content="width=device-width, user-scalable=no">
     
     <script src="/bower_components/requirejs/require.js"></script>
+
+    <script>
+      require.config({
+        baseUrl: "/node_modules",
+        paths: {
+          "yarnball-editor": "/bower_components/yarnball-editor"
+        }
+      });
+    </script>
     
     <!-- Polyfills -->
     <script src="/bower_components/webcomponentsjs/webcomponents-lite.min.js"></script>
     <script src="/bower_components/web-animations-js/web-animations.min.js"></script>
     
-    <link rel="import" href="widgets/surface/surface.html">
-    <link rel="import" href="widgets/web/web.html">
+    <link rel="import" href="/bower_components/yarnball-editor/widgets/surface/surface.html">
+    <link rel="import" href="/bower_components/yarnball-editor/widgets/web/web.html">
     
     <style>
       yb-surface {

@@ -1,7 +1,7 @@
 var SurfaceWeb = require('./surface-web');
-var Node       = require('yarnball/core/node');
-var Web        = require('yarnball/core/web');
-var Batch      = require('yarnball/core/batch');
+var Node       = require('yarnball/src/node');
+var Web        = require('yarnball/src/web');
+var Batch      = require('yarnball/src/batch');
 var test       = require('tape');
 
 test('surface-web test', function(t) {
