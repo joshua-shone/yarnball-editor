@@ -79,6 +79,8 @@
           
           self.selectedWidgets = new Set();
           
+          self.clipboardWidgets = new Set();
+
           self.nodesToWidgets = new Map();
           
           self.connectorsFrom = new Map();
@@ -101,6 +103,9 @@
             self.connectorHighlightsLayer = self.zIndexManager.addLayer();
             self.nodesLayer               = self.zIndexManager.addLayer();
           });
+
+          self.cursorPosition = null;
+          window.addEventListener('mousemove', self.handleWindowMousemove.bind(self));
         },
         ready: function() {
         
@@ -173,6 +178,8 @@
           if (self._web) {
             self._web.removeLinksListener(self.onLinks);
           }
+
+          window.removeEventListener('mousemove', self.handleWindowMousemove);
         },
         hasOperation: function() {
           return this.currentOperation !== null;
@@ -227,6 +234,9 @@
               y: (event.clientY - targetBoundingClientRect.top)  / this.viewScale,
             },
           }
+        },
+        handleWindowMousemove: function(event) {
+          this.cursorPosition = this.translateMouseEvent(event);
         },
         captureMouse: function(event, options) {
         
@@ -428,6 +438,8 @@
           'del delete':         'handleKey_Del',
           'ctrl+a':             'handleKey_CtrlA',
           'ctrl+shift+a ctrl+d':'handleKey_Deselect',
+          'ctrl+c':             'handleKey_CtrlC',
+          'ctrl+v':             'handleKey_CtrlV',
           'pageup':             'handleKey_PageUp',
           'pagedown':           'handleKey_PageDown',
           'ctrl+enter':         'handleKey_CtrlEnter',
@@ -462,6 +474,34 @@
           if (!this.hasOperation() && document.activeElement === this) {
             event.preventDefault();
             this.deselect();
+            return false;
+          }
+        },
+        handleKey_CtrlC: function(event) {
+          this.clipboardWidgets = new Set(this.selectedWidgets);
+        },
+        handleKey_CtrlV: function(event) {
+          if (this.clipboardWidgets.size > 0 && this.canBeginOperation()) {
+            event.preventDefault();
+            var boundingBox = this.getWidgetsBoundingBox(this.clipboardWidgets);
+            var boundingBoxCenter = {
+              x: boundingBox.left + ((boundingBox.right  - boundingBox.left) / 2),
+              y: boundingBox.top  + ((boundingBox.bottom - boundingBox.top)  / 2),
+            }
+            var clipboardToCursor = {
+              x: this.cursorPosition.positionView.x - boundingBoxCenter.x,
+              y: this.cursorPosition.positionView.y - boundingBoxCenter.y,
+            }
+            var operation = this.beginOperation(this.CloneWidgetsOperation, this.clipboardWidgets);
+            operation.newWidgets.forEach(widget => {
+              var widgetPosition = this.getWidgetPosition(widget);
+              var newWidgetPosition = {
+                x: widgetPosition.x + clipboardToCursor.x,
+                y: widgetPosition.y + clipboardToCursor.y,
+              }
+              this.setWidgetPosition(widget, newWidgetPosition);
+            });
+            this.selectWidgets(operation.newWidgets);
             return false;
           }
         },
@@ -601,6 +641,22 @@
           } else {
             return null;
           }
+        },
+        getWidgetsBoundingBox: function(widgets) {
+          var boundingBox = {
+            left:   null,
+            top:    null,
+            right:  null,
+            bottom: null,
+          }
+          widgets.forEach(widget => {
+            var position = this.getWidgetCenter(widget);
+            boundingBox.left   = (boundingBox.left   === null || position.x < boundingBox.left)   ? position.x : boundingBox.left;
+            boundingBox.top    = (boundingBox.top    === null || position.y < boundingBox.top)    ? position.y : boundingBox.top;
+            boundingBox.right  = (boundingBox.right  === null || position.x > boundingBox.right)  ? position.x : boundingBox.right;
+            boundingBox.bottom = (boundingBox.bottom === null || position.y > boundingBox.bottom) ? position.y : boundingBox.bottom;
+          });
+          return boundingBox;
         },
         getWidgetsInRect: function(rect) {
           var self = this;
@@ -867,9 +923,11 @@
         },
         detachWidget: function(widget) {
           widget.classList.remove('yb-surface');
+          this.clipboardWidgets.delete(widget);
           return this.viewRoot.removeChild(widget);
         },
         removeWidget: function(widget) {
+          this.clipboardWidgets.delete(widget);
           return this.viewRoot.removeChild(widget);
         },
         removeWidgets: function(widgets) {
